@@ -1,0 +1,116 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+@import url('https://unpkg.com/leaflet@1.9.4/dist/leaflet.css');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --font-sans: 'Inter', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+
+    /* Dark Mode Professional / Military / ATC style theme */
+    --background: 220 20% 8%;
+    --foreground: 210 40% 98%;
+
+    --card: 222 24% 11%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222 24% 11%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 217 91% 60%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 217 24% 20%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217 24% 16%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 217 24% 20%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 210 40% 98%;
+
+    --advisory: 199 89% 48%;
+    --advisory-foreground: 210 40% 98%;
+
+    --border: 217 24% 20%;
+    --input: 217 24% 20%;
+    --ring: 217 91% 60%;
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 222 24% 9%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 217 91% 60%;
+    --sidebar-primary-foreground: 210 40% 98%;
+    --sidebar-accent: 217 24% 16%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217 24% 16%;
+    --sidebar-ring: 217 91% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold tracking-tight;
+  }
+}
+
+@layer utilities {
+  .glass-panel {
+    @apply bg-card/75 backdrop-blur-xl border border-white/10 shadow-2xl;
+  }
+  
+  .mono-data {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Map container overrides */
+  .leaflet-container {
+    background: #0f1115 !important;
+    font-family: var(--font-sans) !important;
+  }
+  .leaflet-bar a {
+    background-color: hsl(var(--card)) !important;
+    color: hsl(var(--foreground)) !important;
+    border-color: hsl(var(--border)) !important;
+  }
+  .leaflet-bar a:hover {
+    background-color: hsl(var(--accent)) !important;
+  }
+  .leaflet-control-zoom-in, .leaflet-control-zoom-out {
+    @apply transition-colors duration-200;
+  }
+  
+  /* Custom Scrollbar for sleek dark look */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted));
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground));
+  }
+}

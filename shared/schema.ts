@@ -1,18 +1,20 @@
-import { sql } from "drizzle-orm";
-import { pgTable, text, varchar } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
+export const favoriteLocations = pgTable("favorite_locations", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  lat: text("lat").notNull(),
+  lon: text("lon").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
-});
+export const insertLocationSchema = createInsertSchema(favoriteLocations).omit({ id: true, createdAt: true });
 
-export type InsertUser = z.infer<typeof insertUserSchema>;
-export type User = typeof users.$inferSelect;
+export type Location = typeof favoriteLocations.$inferSelect;
+export type InsertLocation = z.infer<typeof insertLocationSchema>;
+
+export type CreateLocationRequest = InsertLocation;
+export type LocationResponse = Location;
+export type LocationsListResponse = Location[];

@@ -1,0 +1,107 @@
+{
+  "stations": {
+    "001D0A717E11": {
+      "name": "White Squirrel Weather, WKU CHAOS Lab",
+      "url": "https://warren.weatherstem.com/wkuchaos"
+    }
+  },
+  "records": [
+    {
+      "did": "001D0A717E11",
+      "sensor": "Thermometer",
+      "reading": 53.3,
+      "units": "&deg;F",
+      "time": 1772037911,
+      "age": 4
+    },
+    {
+      "did": "001D0A717E11",
+      "sensor": "Hygrometer",
+      "reading": 64.3,
+      "units": "%",
+      "time": 1772037911,
+      "age": 4
+    },
+    {
+      "did": "001D0A717E11",
+      "sensor": "Dewpoint",
+      "reading": 41.5,
+      "units": "&deg;F",
+      "time": 1772037911,
+      "age": 4
+    },
+    {
+      "did": "001D0A717E11",
+      "sensor": "Heat Index",
+      "reading": 52.3,
+      "units": "&deg;F",
+      "time": 1772037911,
+      "age": 4
+    },
+    {
+      "did": "001D0A717E11",
+      "sensor": "Wind Chill",
+      "reading": 50.1,
+      "units": "&deg;F",
+      "time": 1772037911,
+      "age": 4
+    },
+    {
+      "did": "001D0A717E11",
+      "sensor": "Anemometer",
+      "reading": 6,
+      "units": "mph",
+      "time": 1772037911,
+      "age": 4
+    },
+    {
+      "did": "001D0A717E11",
+      "sensor": "Wind Vane",
+      "reading": 34,
+      "units": "&deg;",
+      "time": 1772037911,
+      "age": 4
+    },
+    {
+      "did": "001D0A717E11",
+      "sensor": "10 Minute Wind Gust",
+      "reading": 19,
+      "units": "mph",
+      "time": 1772037911,
+      "age": 4
+    },
+    {
+      "did": "001D0A717E11",
+      "sensor": "Rain Rate",
+      "reading": 0,
+      "units": "in/hr",
+      "time": 1772037911,
+      "age": 4
+    },
+    {
+      "did": "001D0A717E11",
+      "sensor": "Rain Gauge",
+      "reading": 0,
+      "units": "in.",
+      "time": 1772037911,
+      "age": 4
+    },
+    {
+      "did": "001D0A717E11",
+      "sensor": "Solar Radiation Sensor",
+      "reading": 185,
+      "units": "W/m^2",
+      "time": 1772037911,
+      "age": 4
+    },
+    {
+      "did": "001D0A717E11",
+      "sensor": "UV Radiation Sensor",
+      "reading": 0.8,
+      "units": " ",
+      "time": 1772037911,
+      "age": 4
+    }
+  ],
+  "now": 1772037915
+}
