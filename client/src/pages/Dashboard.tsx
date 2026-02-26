@@ -12,7 +12,7 @@ export default function Dashboard() {
   // Default center over Bowling Green, KY (WKU)
   const [mapCenter] = useState<[number, number]>([36.9850, -86.4550]);
   const [mapZoom] = useState(13);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   
   // SPC Layer Toggles
   const [showDay1, setShowDay1] = useState(false);
@@ -30,36 +30,36 @@ export default function Dashboard() {
   const advisoriesCount = alertsData?.advisories?.length || 0;
 
   return (
-    <div className="flex h-screen w-full bg-background text-foreground overflow-hidden font-sans selection:bg-primary/30">
+    <div className="flex h-screen w-full bg-background text-foreground overflow-hidden font-sans selection:bg-primary/30 flex-col md:flex-row">
       
       {/* Top Alerts Bar */}
-      <div className="absolute top-0 left-0 right-0 h-10 z-[600] flex items-center justify-center gap-6 px-4 pointer-events-none">
-        <div className="bg-background/80 backdrop-blur-md border border-border/50 rounded-full px-6 py-1 shadow-xl flex items-center gap-6 pointer-events-auto">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className={`w-3.5 h-3.5 ${warningsCount > 0 ? "text-destructive animate-pulse" : "text-muted-foreground"}`} />
-            <span className="text-[10px] font-black uppercase tracking-widest">Warnings:</span>
-            <span className={`text-xs font-mono-tech font-bold ${warningsCount > 0 ? "text-destructive" : "text-muted-foreground"}`}>{warningsCount}</span>
+      <div className="absolute top-0 left-0 right-0 h-10 z-[600] flex items-center justify-center gap-2 md:gap-6 px-2 md:px-4 pointer-events-none">
+        <div className="bg-background/80 backdrop-blur-md border border-border/50 rounded-full px-3 md:px-6 py-1 shadow-xl flex items-center gap-3 md:gap-6 pointer-events-auto scale-90 md:scale-100">
+          <div className="flex items-center gap-1 md:gap-2">
+            <AlertTriangle className={`w-3 md:w-3.5 h-3 md:h-3.5 ${warningsCount > 0 ? "text-destructive animate-pulse" : "text-muted-foreground"}`} />
+            <span className="text-[8px] md:text-[10px] font-black uppercase tracking-widest hidden sm:inline">Warnings:</span>
+            <span className={`text-[10px] md:text-xs font-mono-tech font-bold ${warningsCount > 0 ? "text-destructive" : "text-muted-foreground"}`}>{warningsCount}</span>
           </div>
           <div className="w-px h-3 bg-border/50"></div>
-          <div className="flex items-center gap-2">
-            <ShieldAlert className={`w-3.5 h-3.5 ${watchesCount > 0 ? "text-[hsl(var(--warning))]" : "text-muted-foreground"}`} />
-            <span className="text-[10px] font-black uppercase tracking-widest">Watches:</span>
-            <span className={`text-xs font-mono-tech font-bold ${watchesCount > 0 ? "text-[hsl(var(--warning))]" : "text-muted-foreground"}`}>{watchesCount}</span>
+          <div className="flex items-center gap-1 md:gap-2">
+            <ShieldAlert className={`w-3 md:w-3.5 h-3 md:h-3.5 ${watchesCount > 0 ? "text-[hsl(var(--warning))]" : "text-muted-foreground"}`} />
+            <span className="text-[8px] md:text-[10px] font-black uppercase tracking-widest hidden sm:inline">Watches:</span>
+            <span className={`text-[10px] md:text-xs font-mono-tech font-bold ${watchesCount > 0 ? "text-[hsl(var(--warning))]" : "text-muted-foreground"}`}>{watchesCount}</span>
           </div>
           <div className="w-px h-3 bg-border/50"></div>
-          <div className="flex items-center gap-2">
-            <Info className={`w-3.5 h-3.5 ${advisoriesCount > 0 ? "text-primary" : "text-muted-foreground"}`} />
-            <span className="text-[10px] font-black uppercase tracking-widest">Advisories:</span>
-            <span className={`text-xs font-mono-tech font-bold ${advisoriesCount > 0 ? "text-primary" : "text-muted-foreground"}`}>{advisoriesCount}</span>
+          <div className="flex items-center gap-1 md:gap-2">
+            <Info className={`w-3 md:w-3.5 h-3 md:h-3.5 ${advisoriesCount > 0 ? "text-primary" : "text-muted-foreground"}`} />
+            <span className="text-[8px] md:text-[10px] font-black uppercase tracking-widest hidden sm:inline">Advisories:</span>
+            <span className={`text-[10px] md:text-xs font-mono-tech font-bold ${advisoriesCount > 0 ? "text-primary" : "text-muted-foreground"}`}>{advisoriesCount}</span>
           </div>
         </div>
       </div>
 
-      {/* LEFT SIDEBAR - Dashboard Controls */}
+      {/* SIDEBAR - Dashboard Controls */}
       <aside 
         className={`${
-          sidebarCollapsed ? "w-0 p-0 overflow-hidden border-r-0" : "w-[380px] p-4 border-r"
-        } h-full flex flex-col gap-4 z-10 bg-background/50 border-border shadow-2xl backdrop-blur-xl transition-all duration-300 relative pt-12`}
+          sidebarCollapsed ? "w-0 p-0 overflow-hidden border-r-0" : "w-full md:w-[380px] p-4 border-r"
+        } h-full flex flex-col gap-4 z-[700] bg-background/95 md:bg-background/50 border-border shadow-2xl backdrop-blur-xl transition-all duration-300 fixed md:relative pt-16 md:pt-12`}
       >
         {!sidebarCollapsed && (
           <>
@@ -76,6 +76,14 @@ export default function Dashboard() {
                   Situational Awareness
                 </p>
               </div>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="ml-auto md:hidden"
+                onClick={() => setSidebarCollapsed(true)}
+              >
+                <ChevronLeft className="w-6 h-6" />
+              </Button>
             </header>
 
             {/* SPC Layer Toggles */}
@@ -117,7 +125,7 @@ export default function Dashboard() {
       </Button>
 
       {/* MAIN CONTENT - Interactive Map */}
-      <main className="flex-1 h-full relative">
+      <main className="flex-1 h-full relative z-0">
         <MapArea 
           center={mapCenter} 
           zoom={mapZoom} 
@@ -128,7 +136,7 @@ export default function Dashboard() {
         />
 
         {/* YouTube Embed Tool Window */}
-        <div className="absolute top-4 right-14 z-[400] glass-panel rounded-lg overflow-hidden border border-border/50 shadow-2xl">
+        <div className="absolute top-4 right-4 md:right-14 z-[400] glass-panel rounded-lg overflow-hidden border border-border/50 shadow-2xl scale-75 md:scale-100 origin-top-right">
           <iframe 
             width="320" 
             height="180" 
@@ -138,12 +146,20 @@ export default function Dashboard() {
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
             referrerPolicy="strict-origin-when-cross-origin" 
             allowFullScreen
+            className="max-w-[100vw]"
           ></iframe>
         </div>
 
         {/* Floating Time Panel - Bottom Right */}
-        <div className="absolute bottom-6 right-6 z-[400] w-64">
+        <div className="absolute bottom-6 right-6 z-[400] w-64 scale-90 md:scale-100 origin-bottom-right hidden sm:block">
            <TimePanel />
+        </div>
+        
+        {/* Mobile Time Panel Snippet */}
+        <div className="absolute bottom-4 left-4 right-4 z-[400] sm:hidden">
+          <div className="glass-panel rounded-lg p-3 text-center text-[10px] font-mono-tech font-bold uppercase tracking-widest bg-background/80 border border-border/50">
+            Link Active - System Nominal
+          </div>
         </div>
       </main>
 
