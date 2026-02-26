@@ -2,11 +2,12 @@ import { useState } from "react";
 import { TimePanel } from "@/components/TimePanel";
 import { AlertsPanel } from "@/components/AlertsPanel";
 import { MapArea } from "@/components/MapArea";
-import { ShieldCheck, ChevronLeft, ChevronRight, AlertTriangle, ShieldAlert, Info } from "lucide-react";
+import { ShieldCheck, ChevronLeft, ChevronRight, AlertTriangle, ShieldAlert, Info, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
 
 export default function Dashboard() {
   // Default center over Bowling Green, KY (WKU)
@@ -19,6 +20,7 @@ export default function Dashboard() {
   const [showDay2, setShowDay2] = useState(false);
   const [showDay3, setShowDay3] = useState(false);
   const [showTornado, setShowTornado] = useState(false);
+  const [radarOpacity, setRadarOpacity] = useState(0.65);
 
   const { data: alertsData } = useQuery<any>({
     queryKey: ["/api/weather/alerts"],
@@ -88,23 +90,43 @@ export default function Dashboard() {
 
             {/* SPC Layer Toggles */}
             <div className="glass-panel rounded-lg p-4 border-l-4 border-l-primary/30 mb-2">
-              <h3 className="text-[10px] font-black uppercase tracking-widest text-primary mb-3">SPC Overlays</h3>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="day1" checked={showDay1} onCheckedChange={(c) => setShowDay1(!!c)} />
-                  <Label htmlFor="day1" className="text-[10px] font-bold uppercase cursor-pointer">Day 1 Outlook</Label>
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-primary mb-3 flex items-center gap-2">
+                <Layers className="w-3 h-3" />
+                Overlay Controls
+              </h3>
+              
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Radar Transparency</Label>
+                    <span className="text-[10px] font-mono-tech font-bold text-primary">{Math.round(radarOpacity * 100)}%</span>
+                  </div>
+                  <Slider 
+                    value={[radarOpacity]} 
+                    min={0} 
+                    max={1} 
+                    step={0.01} 
+                    onValueChange={([val]) => setRadarOpacity(val)}
+                  />
                 </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="day2" checked={showDay2} onCheckedChange={(c) => setShowDay2(!!c)} />
-                  <Label htmlFor="day2" className="text-[10px] font-bold uppercase cursor-pointer">Day 2 Outlook</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="day3" checked={showDay3} onCheckedChange={(c) => setShowDay3(!!c)} />
-                  <Label htmlFor="day3" className="text-[10px] font-bold uppercase cursor-pointer">Day 3 Outlook</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <Checkbox id="tornado" checked={showTornado} onCheckedChange={(c) => setShowTornado(!!c)} />
-                  <Label htmlFor="tornado" className="text-[10px] font-bold uppercase cursor-pointer text-destructive">Tornado Prob</Label>
+
+                <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border/30">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox id="day1" checked={showDay1} onCheckedChange={(c) => setShowDay1(!!c)} />
+                    <Label htmlFor="day1" className="text-[10px] font-bold uppercase cursor-pointer">Day 1 Outlook</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox id="day2" checked={showDay2} onCheckedChange={(c) => setShowDay2(!!c)} />
+                    <Label htmlFor="day2" className="text-[10px] font-bold uppercase cursor-pointer">Day 2 Outlook</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox id="day3" checked={showDay3} onCheckedChange={(c) => setShowDay3(!!c)} />
+                    <Label htmlFor="day3" className="text-[10px] font-bold uppercase cursor-pointer">Day 3 Outlook</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox id="tornado" checked={showTornado} onCheckedChange={(c) => setShowTornado(!!c)} />
+                    <Label htmlFor="tornado" className="text-[10px] font-bold uppercase cursor-pointer text-destructive">Tornado Prob</Label>
+                  </div>
                 </div>
               </div>
             </div>
@@ -133,6 +155,7 @@ export default function Dashboard() {
           showDay2={showDay2}
           showDay3={showDay3}
           showTornado={showTornado}
+          radarOpacity={radarOpacity}
         />
 
         {/* YouTube Embed Tool Window */}

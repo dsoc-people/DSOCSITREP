@@ -21,6 +21,7 @@ interface MapAreaProps {
   showDay2?: boolean;
   showDay3?: boolean;
   showTornado?: boolean;
+  radarOpacity?: number;
 }
 
 // Component to handle imperative map flyTo when center prop changes
@@ -37,7 +38,7 @@ function MapController({ center, zoom }: { center: [number, number], zoom: numbe
   return null;
 }
 
-export function MapArea({ center, zoom = 4, showDay1, showDay2, showDay3, showTornado }: MapAreaProps) {
+export function MapArea({ center, zoom = 4, showDay1, showDay2, showDay3, showTornado, radarOpacity = 0.65 }: MapAreaProps) {
   return (
     <div className="relative w-full h-full bg-background z-0">
       <MapContainer 
@@ -59,7 +60,7 @@ export function MapArea({ center, zoom = 4, showDay1, showDay2, showDay3, showTo
         <TileLayer
           attribution='Weather data &copy; <a href="https://mesonet.agron.iastate.edu">IEM</a>'
           url="https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png"
-          opacity={0.65}
+          opacity={radarOpacity}
           maxZoom={19}
         />
 
