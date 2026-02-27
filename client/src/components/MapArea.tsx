@@ -1,5 +1,5 @@
-import { useEffect } from "react";
-import { MapContainer, TileLayer, Marker, Popup, useMap, ZoomControl, ScaleControl } from "react-leaflet";
+import { useEffect, useState } from "react";
+import { MapContainer, TileLayer, Marker, Popup, useMap, ZoomControl, ScaleControl, GeoJSON } from "react-leaflet";
 import L from "leaflet";
 
 // Fix Leaflet's default icon path issues in React
@@ -24,10 +24,91 @@ interface MapAreaProps {
   radarOpacity?: number;
 }
 
+function useSpcGeoJson(show: boolean | undefined, url: string) {
+  const [data, setData] = useState<any | null>(null);
+
+  useEffect(() => {
+    if (!show) return;
+
+    let cancelled = false;
+
+    fetch(url)
+      .then((res) => {
+        if (!res.ok) {
+          throw new Error(`SPC GeoJSON fetch failed: ${res.status}`);
+        }
+        return res.json();
+      })
+      .then((json) => {
+        if (!cancelled) {
+          setData(json);
+        }
+      })
+      .catch((err) => {
+        // eslint-disable-next-line no-console
+        console.error("Error loading SPC GeoJSON", url, err);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [show, url]);
+
+  return data;
+}
+
+function getSpcCategoryColor(label: string | undefined | null) {
+  const key = (label || "").toUpperCase();
+  switch (key) {
+    case "TSTM":
+    case "GENERAL THUNDERSTORMS":
+    case "GENERAL THUNDERSTORMS RISK":
+      return "#55BB55"; // SPC general thunder green
+    case "MRGL":
+    case "MARGINAL":
+      return "#00FF00"; // bright green
+    case "SLGT":
+    case "SLIGHT":
+      return "#FFFF00"; // yellow
+    case "ENH":
+    case "ENHANCED":
+      return "#FFA500"; // orange
+    case "MDT":
+    case "MODERATE":
+      return "#FF0000"; // red
+    case "HIGH":
+      return "#FF00FF"; // magenta
+    default:
+      return "#FFFFFF"; // fallback white
+  }
+}
+
+function getSpcTornadoColor(label: string | undefined | null) {
+  const key = (label || "").replace("%", "");
+  switch (key) {
+    case "2":
+      return "#99FF99"; // light green
+    case "5":
+      return "#00FF00"; // green
+    case "10":
+      return "#FFFF00"; // yellow
+    case "15":
+      return "#FFA500"; // orange
+    case "30":
+      return "#FF0000"; // red
+    case "45":
+      return "#FF00FF"; // magenta
+    case "60":
+      return "#FF0000"; // intense red for very high probs
+    default:
+      return "#FFFFFF";
+  }
+}
+
 // Component to handle imperative map flyTo when center prop changes
 function MapController({ center, zoom }: { center: [number, number], zoom: number }) {
   const map = useMap();
-  
+
   useEffect(() => {
     map.flyTo(center, zoom, {
       duration: 1.5,
@@ -39,6 +120,11 @@ function MapController({ center, zoom }: { center: [number, number], zoom: numbe
 }
 
 export function MapArea({ center, zoom = 4, showDay1, showDay2, showDay3, showTornado, radarOpacity = 0.65 }: MapAreaProps) {
+  const day1Outlook = useSpcGeoJson(!!showDay1, "https://www.spc.noaa.gov/products/outlook/day1otlk_cat.nolyr.geojson");
+  const day2Outlook = useSpcGeoJson(!!showDay2, "https://www.spc.noaa.gov/products/outlook/day2otlk_cat.nolyr.geojson");
+  const day3Outlook = useSpcGeoJson(!!showDay3, "https://www.spc.noaa.gov/products/outlook/day3otlk_cat.nolyr.geojson");
+  const day1Tornado = useSpcGeoJson(!!showTornado, "https://www.spc.noaa.gov/products/outlook/day1otlk_torn.nolyr.geojson");
+
   return (
     <div className="relative w-full h-full bg-background z-0">
       <MapContainer 
@@ -48,7 +134,7 @@ export function MapArea({ center, zoom = 4, showDay1, showDay2, showDay3, showTo
         zoomControl={false}
       >
         <MapController center={center} zoom={zoom} />
-        
+
         {/* Dark Matter Base Map - Excellent for GIS/Dashboards */}
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
@@ -64,43 +150,91 @@ export function MapArea({ center, zoom = 4, showDay1, showDay2, showDay3, showTo
           maxZoom={19}
         />
 
-        {/* SPC Day 1 Convective Outlook */}
-        {showDay1 && (
-          <TileLayer
-            attribution="SPC"
-            url="https://mapservices.weather.noaa.gov/eventdrive/rest/services/SPC/SPC_Outlook/MapServer/tile/1/{z}/{y}/{x}"
-            opacity={0.4}
-            maxZoom={19}
+        {/* SPC Day 1 Convective Outlook (GeoJSON from SPC) */}
+        {showDay1 && day1Outlook && (
+          <GeoJSON
+            data={day1Outlook}
+            style={(feature) => {
+              const props = (feature?.properties as any) || {};
+              const label =
+                props.LABEL2 ??
+                props.LABEL ??
+                props.category;
+              const baseColor = getSpcCategoryColor(label);
+              const stroke = props.stroke || baseColor;
+              const fill = props.fill || baseColor;
+              return {
+                color: stroke,
+                weight: 2,
+                fillColor: fill,
+                fillOpacity: 0.25,
+              };
+            }}
           />
         )}
 
         {/* SPC Day 2 Convective Outlook */}
-        {showDay2 && (
-          <TileLayer
-            attribution="SPC"
-            url="https://mapservices.weather.noaa.gov/eventdrive/rest/services/SPC/SPC_Outlook/MapServer/tile/9/{z}/{y}/{x}"
-            opacity={0.4}
-            maxZoom={19}
+        {showDay2 && day2Outlook && (
+          <GeoJSON
+            data={day2Outlook}
+            style={(feature) => {
+              const props = (feature?.properties as any) || {};
+              const label =
+                props.LABEL2 ??
+                props.LABEL ??
+                props.category;
+              const baseColor = getSpcCategoryColor(label);
+              const stroke = props.stroke || baseColor;
+              const fill = props.fill || baseColor;
+              return {
+                color: stroke,
+                weight: 2,
+                fillColor: fill,
+                fillOpacity: 0.25,
+              };
+            }}
           />
         )}
 
         {/* SPC Day 3 Convective Outlook */}
-        {showDay3 && (
-          <TileLayer
-            attribution="SPC"
-            url="https://mapservices.weather.noaa.gov/eventdrive/rest/services/SPC/SPC_Outlook/MapServer/tile/17/{z}/{y}/{x}"
-            opacity={0.4}
-            maxZoom={19}
+        {showDay3 && day3Outlook && (
+          <GeoJSON
+            data={day3Outlook}
+            style={(feature) => {
+              const props = (feature?.properties as any) || {};
+              const label =
+                props.LABEL2 ??
+                props.LABEL ??
+                props.category;
+              const baseColor = getSpcCategoryColor(label);
+              const stroke = props.stroke || baseColor;
+              const fill = props.fill || baseColor;
+              return {
+                color: stroke,
+                weight: 2,
+                fillColor: fill,
+                fillOpacity: 0.25,
+              };
+            }}
           />
         )}
 
-        {/* SPC Tornado Probabilities */}
-        {showTornado && (
-          <TileLayer
-            attribution="SPC"
-            url="https://mapservices.weather.noaa.gov/eventdrive/rest/services/SPC/SPC_Outlook/MapServer/tile/2/{z}/{y}/{x}"
-            opacity={0.4}
-            maxZoom={19}
+        {/* SPC Day 1 Tornado Probabilities */}
+        {showTornado && day1Tornado && (
+          <GeoJSON
+            data={day1Tornado}
+            style={(feature) => {
+              const label =
+                (feature?.properties as any)?.LABEL2 ??
+                (feature?.properties as any)?.LABEL ??
+                (feature?.properties as any)?.prob;
+              const color = getSpcTornadoColor(label);
+              return {
+                color,
+                weight: 2,
+                fillOpacity: 0.3,
+              };
+            }}
           />
         )}
 
@@ -115,7 +249,7 @@ export function MapArea({ center, zoom = 4, showDay1, showDay2, showDay3, showTo
           </Popup>
         </Marker>
       </MapContainer>
-      
+
       {/* Decorative GIS Overlay Elements */}
       <div className="absolute top-4 left-4 pointer-events-none select-none z-[400] flex flex-col gap-1">
         <div className="bg-card/80 backdrop-blur px-3 py-1 rounded border border-border/50 shadow-lg flex items-center gap-2">
