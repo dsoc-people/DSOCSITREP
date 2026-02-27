@@ -19,7 +19,7 @@
     --popover-foreground: 0 0% 98%;
     
     /* Tech/GIS Accents */
-    --primary: 199 89% 48%; /* Cyan/Blue for primary actions */
+    --primary: 0 71% 40%; /* WKU Red: #B01E24 -> HSL(0, 71%, 40%) */
     --primary-foreground: 0 0% 100%;
     --secondary: 240 4% 16%;
     --secondary-foreground: 0 0% 98%;

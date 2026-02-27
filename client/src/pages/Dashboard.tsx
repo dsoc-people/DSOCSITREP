@@ -9,6 +9,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 
+import dsocLogo from "@assets/image_1772208714711.png";
+
 export default function Dashboard() {
   // Default center over Bowling Green, KY (WKU)
   const [mapCenter] = useState<[number, number]>([36.9850, -86.4550]);
@@ -66,26 +68,27 @@ export default function Dashboard() {
         {!sidebarCollapsed && (
           <>
             {/* Header/Logo Area */}
-            <header className="flex items-center gap-3 px-2 pb-2">
-              <div className="bg-primary/10 p-2 rounded-lg border border-primary/30">
-                <ShieldCheck className="w-8 h-8 text-primary" />
+            <header className="flex flex-col gap-3 px-2 pb-4 border-b border-border/50">
+              <div className="relative w-full aspect-[3/1] overflow-hidden rounded-lg">
+                <img 
+                  src={dsocLogo} 
+                  alt="DSOC Logo" 
+                  className="w-full h-full object-contain"
+                />
               </div>
-              <div>
-                <h1 className="text-xl font-black tracking-tight leading-none text-foreground uppercase">
-                  SA<span className="text-primary">GUI</span>
-                </h1>
+              <div className="flex items-center justify-between">
                 <p className="text-[10px] font-mono-tech text-muted-foreground uppercase tracking-widest">
                   Situational Awareness
                 </p>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="md:hidden"
+                  onClick={() => setSidebarCollapsed(true)}
+                >
+                  <ChevronLeft className="w-6 h-6" />
+                </Button>
               </div>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="ml-auto md:hidden"
-                onClick={() => setSidebarCollapsed(true)}
-              >
-                <ChevronLeft className="w-6 h-6" />
-              </Button>
             </header>
 
             {/* SPC Layer Toggles */}
