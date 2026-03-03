@@ -21,7 +21,11 @@ interface MapAreaProps {
   showDay2?: boolean;
   showDay3?: boolean;
   showTornado?: boolean;
+  showRadar?: boolean;
   radarOpacity?: number;
+  showSatellite?: boolean;
+  satelliteOpacity?: number;
+  satelliteBand?: string;
 }
 
 function useSpcGeoJson(show: boolean | undefined, url: string) {
@@ -119,7 +123,19 @@ function MapController({ center, zoom }: { center: [number, number], zoom: numbe
   return null;
 }
 
-export function MapArea({ center, zoom = 4, showDay1, showDay2, showDay3, showTornado, radarOpacity = 0.65 }: MapAreaProps) {
+export function MapArea({ 
+  center, 
+  zoom = 4, 
+  showDay1, 
+  showDay2, 
+  showDay3, 
+  showTornado, 
+  showRadar = true, 
+  radarOpacity = 0.65,
+  showSatellite = false,
+  satelliteOpacity = 0.5,
+  satelliteBand = 'east-ir-10.3um'
+}: MapAreaProps) {
   const day1Outlook = useSpcGeoJson(!!showDay1, "https://www.spc.noaa.gov/products/outlook/day1otlk_cat.nolyr.geojson");
   const day2Outlook = useSpcGeoJson(!!showDay2, "https://www.spc.noaa.gov/products/outlook/day2otlk_cat.nolyr.geojson");
   const day3Outlook = useSpcGeoJson(!!showDay3, "https://www.spc.noaa.gov/products/outlook/day3otlk_cat.nolyr.geojson");
@@ -142,13 +158,25 @@ export function MapArea({ center, zoom = 4, showDay1, showDay2, showDay3, showTo
           maxZoom={19}
         />
 
+        {/* GOES Satellite Layer (IEM) */}
+        {showSatellite && (
+          <TileLayer
+            attribution='Satellite &copy; <a href="https://mesonet.agron.iastate.edu">IEM</a>'
+            url={`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/goes-${satelliteBand || 'east-ir-10.3um'}/{z}/{x}/{y}.png`}
+            opacity={satelliteOpacity}
+            maxZoom={19}
+          />
+        )}
+
         {/* Live Weather Radar Overlay (Iowa State Mesonet NEXRAD) */}
-        <TileLayer
-          attribution='Weather data &copy; <a href="https://mesonet.agron.iastate.edu">IEM</a>'
-          url="https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png"
-          opacity={radarOpacity}
-          maxZoom={19}
-        />
+        {showRadar && (
+          <TileLayer
+            attribution='Weather data &copy; <a href="https://mesonet.agron.iastate.edu">IEM</a>'
+            url="https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png"
+            opacity={radarOpacity}
+            maxZoom={19}
+          />
+        )}
 
         {/* SPC Day 1 Convective Outlook (GeoJSON from SPC) */}
         {showDay1 && day1Outlook && (

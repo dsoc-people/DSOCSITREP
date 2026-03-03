@@ -9,6 +9,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+
 import dsocLogo from "@assets/image_1772208714711.png";
 
 export default function Dashboard() {
@@ -17,16 +22,32 @@ export default function Dashboard() {
   const [mapZoom] = useState(13);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
   
+  // Layers
+  const [showRadar, setShowRadar] = useState(true);
+  const [radarOpacity, setRadarOpacity] = useState(0.65);
+  const [showSatellite, setShowSatellite] = useState(false);
+  const [satelliteOpacity, setSatelliteOpacity] = useState(0.5);
+  const [satelliteBand, setSatelliteBand] = useState('east-ir-10.3um');
+
   // SPC Layer Toggles
   const [showDay1, setShowDay1] = useState(false);
   const [showDay2, setShowDay2] = useState(false);
   const [showDay3, setShowDay3] = useState(false);
   const [showTornado, setShowTornado] = useState(false);
-  const [radarOpacity, setRadarOpacity] = useState(0.65);
 
   const { data: alertsData } = useQuery<any>({
     queryKey: ["/api/weather/alerts"],
     refetchInterval: 60000,
+  });
+
+  const { data: afdData } = useQuery<any>({
+    queryKey: ["/api/weather/afd"],
+    refetchInterval: 300000, // 5 mins
+  });
+
+  const { data: soundingData } = useQuery<any>({
+    queryKey: ["/api/weather/sounding"],
+    refetchInterval: 300000,
   });
 
   const warningsCount = alertsData?.warnings?.length || 0;
@@ -91,50 +112,127 @@ export default function Dashboard() {
               </div>
             </header>
 
-            {/* SPC Layer Toggles */}
-            <div className="glass-panel rounded-lg p-4 border-l-4 border-l-primary/30 mb-2">
-              <h3 className="text-[10px] font-black uppercase tracking-widest text-primary mb-3 flex items-center gap-2">
-                <Layers className="w-3 h-3" />
-                Overlay Controls
-              </h3>
-              
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between items-center">
-                    <Label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Radar Transparency</Label>
-                    <span className="text-[10px] font-mono-tech font-bold text-primary">{Math.round(radarOpacity * 100)}%</span>
+            <Tabs defaultValue="layers" className="flex-1 flex flex-col min-h-0">
+              <TabsList className="grid grid-cols-2 bg-muted/20">
+                <TabsTrigger value="layers" className="text-[10px] font-black uppercase tracking-widest">Map Layers</TabsTrigger>
+                <TabsTrigger value="afd" className="text-[10px] font-black uppercase tracking-widest">NWS AFD</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="layers" className="flex-1 mt-4 space-y-4 overflow-y-auto pr-2 pb-6">
+                {/* Overlay Controls */}
+                <div className="glass-panel rounded-lg p-4 border-l-4 border-l-primary/30">
+                  <h3 className="text-[10px] font-black uppercase tracking-widest text-primary mb-3 flex items-center gap-2">
+                    <Layers className="w-3 h-3" />
+                    Radar & Satellite
+                  </h3>
+                  
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center space-x-2">
+                          <Checkbox id="radar" checked={showRadar} onCheckedChange={(c) => setShowRadar(!!c)} />
+                          <Label htmlFor="radar" className="text-[10px] font-bold uppercase cursor-pointer">Live Radar</Label>
+                        </div>
+                        <span className="text-[10px] font-mono-tech font-bold text-primary">{Math.round(radarOpacity * 100)}%</span>
+                      </div>
+                      <Slider 
+                        value={[radarOpacity]} 
+                        min={0} 
+                        max={1} 
+                        step={0.01} 
+                        onValueChange={([val]) => setRadarOpacity(val)}
+                        disabled={!showRadar}
+                      />
+                    </div>
+
+                    <div className="space-y-2 pt-2 border-t border-border/30">
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center space-x-2">
+                          <Checkbox id="satellite" checked={showSatellite} onCheckedChange={(c) => setShowSatellite(!!c)} />
+                          <Label htmlFor="satellite" className="text-[10px] font-bold uppercase cursor-pointer">Satellite</Label>
+                        </div>
+                        <span className="text-[10px] font-mono-tech font-bold text-primary">{Math.round(satelliteOpacity * 100)}%</span>
+                      </div>
+                      
+                      <div className="space-y-3">
+                        <Select value={satelliteBand} onValueChange={setSatelliteBand} disabled={!showSatellite}>
+                          <SelectTrigger className="h-7 text-[9px] font-bold uppercase bg-muted/30">
+                            <SelectValue placeholder="Select Band" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="east-ir-10.3um">IR Longwave (10.3µm)</SelectItem>
+                            <SelectItem value="east-vis-0.64um">Visible (Red 0.64µm)</SelectItem>
+                            <SelectItem value="east-wv-6.2um">Water Vapor (6.2µm)</SelectItem>
+                          </SelectContent>
+                        </Select>
+
+                        <Slider 
+                          value={[satelliteOpacity]} 
+                          min={0} 
+                          max={1} 
+                          step={0.01} 
+                          onValueChange={([val]) => setSatelliteOpacity(val)}
+                          disabled={!showSatellite}
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <Slider 
-                    value={[radarOpacity]} 
-                    min={0} 
-                    max={1} 
-                    step={0.01} 
-                    onValueChange={([val]) => setRadarOpacity(val)}
-                  />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border/30">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox id="day1" checked={showDay1} onCheckedChange={(c) => setShowDay1(!!c)} />
-                    <Label htmlFor="day1" className="text-[10px] font-bold uppercase cursor-pointer">Day 1 Outlook</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox id="day2" checked={showDay2} onCheckedChange={(c) => setShowDay2(!!c)} />
-                    <Label htmlFor="day2" className="text-[10px] font-bold uppercase cursor-pointer">Day 2 Outlook</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox id="day3" checked={showDay3} onCheckedChange={(c) => setShowDay3(!!c)} />
-                    <Label htmlFor="day3" className="text-[10px] font-bold uppercase cursor-pointer">Day 3 Outlook</Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox id="tornado" checked={showTornado} onCheckedChange={(c) => setShowTornado(!!c)} />
-                    <Label htmlFor="tornado" className="text-[10px] font-bold uppercase cursor-pointer text-destructive">Tornado Prob</Label>
+                {/* SPC Overlays */}
+                <div className="glass-panel rounded-lg p-4 border-l-4 border-l-primary/30">
+                  <h3 className="text-[10px] font-black uppercase tracking-widest text-primary mb-3">SPC Outlooks</h3>
+                  <div className="grid grid-cols-2 gap-3 pt-1">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox id="day1" checked={showDay1} onCheckedChange={(c) => setShowDay1(!!c)} />
+                      <Label htmlFor="day1" className="text-[10px] font-bold uppercase cursor-pointer">Day 1</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox id="day2" checked={showDay2} onCheckedChange={(c) => setShowDay2(!!c)} />
+                      <Label htmlFor="day2" className="text-[10px] font-bold uppercase cursor-pointer">Day 2</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox id="day3" checked={showDay3} onCheckedChange={(c) => setShowDay3(!!c)} />
+                      <Label htmlFor="day3" className="text-[10px] font-bold uppercase cursor-pointer">Day 3</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox id="tornado" checked={showTornado} onCheckedChange={(c) => setShowTornado(!!c)} />
+                      <Label htmlFor="tornado" className="text-[10px] font-bold uppercase cursor-pointer text-destructive">Tornado</Label>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
 
-            <AlertsPanel />
+                <AlertsPanel />
+              </TabsContent>
+
+              <TabsContent value="afd" className="flex-1 mt-4 overflow-hidden flex flex-col gap-4">
+                <div className="flex-1 overflow-hidden border border-border/30 rounded-lg bg-card/40 flex flex-col">
+                  <div className="p-3 border-b border-border/30 bg-muted/10 flex items-center justify-between">
+                    <h2 className="text-[10px] font-black uppercase tracking-widest text-primary">Area Forecast Discussion (LMK)</h2>
+                  </div>
+                  <ScrollArea className="flex-1">
+                    <div className="p-4">
+                      <pre className="text-[9px] font-mono-tech leading-relaxed whitespace-pre-wrap text-foreground/90 select-text">
+                        {afdData?.text || "Loading Latest Discussion..."}
+                      </pre>
+                    </div>
+                  </ScrollArea>
+                </div>
+
+                <div className="flex-1 overflow-hidden border border-border/30 rounded-lg bg-card/40 flex flex-col">
+                  <div className="p-3 border-b border-border/30 bg-muted/10 flex items-center justify-between">
+                    <h2 className="text-[10px] font-black uppercase tracking-widest text-primary">Upper Air / Sounding (OHX)</h2>
+                  </div>
+                  <ScrollArea className="flex-1">
+                    <div className="p-4">
+                      <pre className="text-[9px] font-mono-tech leading-relaxed whitespace-pre-wrap text-foreground/90 select-text">
+                        {soundingData?.text || "Loading Latest Sounding Data..."}
+                      </pre>
+                    </div>
+                  </ScrollArea>
+                </div>
+              </TabsContent>
+            </Tabs>
           </>
         )}
       </aside>
@@ -158,7 +256,11 @@ export default function Dashboard() {
           showDay2={showDay2}
           showDay3={showDay3}
           showTornado={showTornado}
+          showRadar={showRadar}
           radarOpacity={radarOpacity}
+          showSatellite={showSatellite}
+          satelliteOpacity={satelliteOpacity}
+          satelliteBand={satelliteBand}
         />
 
         {/* YouTube Embed Tool Window */}

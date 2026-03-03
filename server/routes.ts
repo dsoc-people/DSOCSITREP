@@ -132,5 +132,57 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/weather/afd", async (req, res) => {
+    try {
+      // AFD for LMK (Louisville, KY)
+      const response = await fetch("https://api.weather.gov/products/types/AFD/locations/LMK");
+      if (!response.ok) throw new Error("NWS AFD list fetch failed");
+      const listData = await response.json();
+      const latestProductUrl = listData['@graph']?.[0]?.['@id'];
+      
+      if (!latestProductUrl) throw new Error("No AFD product found");
+      
+      const productResponse = await fetch(latestProductUrl);
+      if (!productResponse.ok) throw new Error("NWS AFD product fetch failed");
+      const productData = await productResponse.json();
+      
+      res.json({ text: productData.productText });
+    } catch (error) {
+      console.error('AFD fetch error:', error);
+      res.status(500).json({ message: "Failed to fetch AFD" });
+    }
+  });
+
+  app.get("/api/weather/sounding", async (req, res) => {
+    try {
+      // Sounding for OHX (Nashville, TN)
+      // Note: NWS API doesn't provide raw sounding text directly in a simple way like AFD
+      // We'll fetch the latest RAOB/Upper Air product for OHX if available
+      const response = await fetch("https://api.weather.gov/products/types/SOU/locations/OHX");
+      if (!response.ok) {
+        // Fallback to checking for other upper air products if SOU isn't used
+        const altResponse = await fetch("https://api.weather.gov/products/types/UA/locations/OHX");
+        if (!altResponse.ok) throw new Error("NWS Sounding fetch failed");
+        const listData = await altResponse.json();
+        const latestProductUrl = listData['@graph']?.[0]?.['@id'];
+        if (!latestProductUrl) throw new Error("No Sounding product found");
+        const productResponse = await fetch(latestProductUrl);
+        const productData = await productResponse.json();
+        return res.json({ text: productData.productText });
+      }
+      
+      const listData = await response.json();
+      const latestProductUrl = listData['@graph']?.[0]?.['@id'];
+      if (!latestProductUrl) throw new Error("No Sounding product found");
+      
+      const productResponse = await fetch(latestProductUrl);
+      const productData = await productResponse.json();
+      res.json({ text: productData.productText });
+    } catch (error) {
+      console.error('Sounding fetch error:', error);
+      res.status(500).json({ message: "Failed to fetch sounding" });
+    }
+  });
+
   return httpServer;
 }
