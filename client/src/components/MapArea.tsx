@@ -38,6 +38,7 @@ interface MapAreaProps {
   satelliteOpacity?: number;
   satelliteBand?: string;
   stations?: StationData[];
+  alertFeatures?: any[];
 }
 
 function useSpcGeoJson(show: boolean | undefined, url: string) {
@@ -119,6 +120,44 @@ function getSpcTornadoColor(label: string | undefined | null) {
     default:
       return "#FFFFFF";
   }
+}
+
+// Injects NWS-color diagonal hatch patterns into Leaflet's SVG overlay layer
+// so GeoJSON fills can reference them via url(#id)
+function AlertPatternDefs() {
+  const map = useMap();
+
+  useEffect(() => {
+    const inject = () => {
+      const pane = map.getPane('overlayPane');
+      if (!pane) return;
+      const svg = pane.querySelector('svg');
+      if (!svg || svg.querySelector('#nws-warn-hatch')) return;
+
+      const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
+      defs.innerHTML = `
+        <pattern id="nws-warn-hatch" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
+          <rect width="8" height="8" fill="#FF0000" fill-opacity="0.2"/>
+          <line x1="0" y1="0" x2="0" y2="8" stroke="#FF0000" stroke-width="3"/>
+        </pattern>
+        <pattern id="nws-watch-hatch" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
+          <rect width="8" height="8" fill="#FFFF00" fill-opacity="0.12"/>
+          <line x1="0" y1="0" x2="0" y2="8" stroke="#FFFF00" stroke-width="3"/>
+        </pattern>
+        <pattern id="nws-adv-hatch" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
+          <rect width="8" height="8" fill="#00AAFF" fill-opacity="0.12"/>
+          <line x1="0" y1="0" x2="0" y2="8" stroke="#00AAFF" stroke-width="3"/>
+        </pattern>
+      `;
+      svg.insertBefore(defs, svg.firstChild);
+    };
+
+    inject();
+    map.on('layeradd', inject);
+    return () => { map.off('layeradd', inject); };
+  }, [map]);
+
+  return null;
 }
 
 // Component to handle imperative map flyTo when center prop changes
@@ -324,6 +363,12 @@ function StationPlot({ station }: { station: StationData }) {
   );
 }
 
+function getAlertColor(category: string) {
+  if (category === 'warning') return '#FF0000';
+  if (category === 'watch') return '#FFA500';
+  return '#00AAFF'; // advisory
+}
+
 export function MapArea({
   center,
   zoom = 4,
@@ -336,7 +381,8 @@ export function MapArea({
   showSatellite = false,
   satelliteOpacity = 0.5,
   satelliteBand = 'ch14',
-  stations = []
+  stations = [],
+  alertFeatures = [],
 }: MapAreaProps) {
   // Bust tile cache every 2 minutes for radar, 10 minutes for satellite
   const [radarTs, setRadarTs] = useState(() => Math.floor(Date.now() / 120000));
@@ -510,6 +556,23 @@ export function MapArea({
 
         <ZoomControl position="topright" />
         <ScaleControl position="bottomright" imperial={true} metric={false} />
+
+        {/* Inject NWS hatch pattern defs into Leaflet's SVG layer */}
+        <AlertPatternDefs />
+
+        {/* NWS Alert County Polygons — hatched by category (warning=red, watch=yellow, advisory=blue) */}
+        {alertFeatures && alertFeatures.length > 0 && (
+          <GeoJSON
+            key={`alerts-${alertFeatures.map((f: any) => f.properties?.event).join(',')}`}
+            data={{ type: 'FeatureCollection', features: alertFeatures } as any}
+            style={(feature: any) => {
+              const cat = feature?.properties?.category;
+              const stroke = getAlertColor(cat);
+              const patId = cat === 'warning' ? 'nws-warn-hatch' : cat === 'watch' ? 'nws-watch-hatch' : 'nws-adv-hatch';
+              return { color: stroke, weight: 2, fillColor: `url(#${patId})`, fillOpacity: 1 };
+            }}
+          />
+        )}
 
         {/* KY Stations Weather Plots */}
         {stations && stations.length > 0 && stations.map((s) => (

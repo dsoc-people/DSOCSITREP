@@ -38,7 +38,7 @@ export default function Dashboard() {
 
   const { data: alertsData } = useQuery<any>({
     queryKey: ["/api/weather/alerts"],
-    refetchInterval: 60000,
+    refetchInterval: 300000,
   });
 
   const { data: soundingData } = useQuery<any>({
@@ -253,9 +253,9 @@ export default function Dashboard() {
 
       {/* MAIN CONTENT - Interactive Map */}
       <main className="flex-1 h-full relative z-0">
-        <MapArea 
-          center={mapCenter} 
-          zoom={mapZoom} 
+        <MapArea
+          center={mapCenter}
+          zoom={mapZoom}
           showDay1={showDay1}
           showDay2={showDay2}
           showDay3={showDay3}
@@ -266,6 +266,7 @@ export default function Dashboard() {
           satelliteOpacity={satelliteOpacity}
           satelliteBand={satelliteBand}
           stations={stationsData}
+          alertFeatures={alertsData?.mapFeatures}
         />
 
         {/* YouTube Embed Tool Window */}

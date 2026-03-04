@@ -87,10 +87,8 @@ export async function registerRoutes(
 
   app.get("/api/weather/alerts", async (req, res) => {
     try {
-      // Warren County, KY Zone is KYZ071 (Public) or KYC227 (County)
-      // The user mentioned Warren Co KY, which maps to zone KYZ071 for alerts
-      const zone = req.query.zone as string || 'KYZ071';
-      const response = await fetch(`https://api.weather.gov/alerts/active?zone=${zone}`);
+      // Fetch all active alerts for the entire state of Kentucky
+      const response = await fetch(`https://api.weather.gov/alerts/active?area=KY`);
 
       if (!response.ok) {
         return res.status(500).json({ message: 'Failed to fetch weather alerts' });
@@ -103,8 +101,17 @@ export async function registerRoutes(
       const watches: any[] = [];
       const advisories: any[] = [];
 
+      // Map: UGC code -> highest-priority category for that zone
+      const ugcCategory = new Map<string, string>();
+
       features.forEach((feature: any) => {
         const props = feature.properties;
+        const eventLower = props.event?.toLowerCase() || '';
+
+        let category = 'advisory';
+        if (eventLower.includes('warning')) category = 'warning';
+        else if (eventLower.includes('watch')) category = 'watch';
+
         const alert = {
           id: props.id,
           event: props.event || 'Unknown',
@@ -115,17 +122,60 @@ export async function registerRoutes(
           expires: props.expires || null
         };
 
-        const eventLower = props.event?.toLowerCase() || '';
-        if (eventLower.includes('warning')) {
-          warnings.push(alert);
-        } else if (eventLower.includes('watch')) {
-          watches.push(alert);
-        } else if (eventLower.includes('advisory') || eventLower.includes('statement')) {
-          advisories.push(alert);
-        }
+        if (category === 'warning') warnings.push(alert);
+        else if (category === 'watch') watches.push(alert);
+        else advisories.push(alert);
+
+        // Collect KY UGC codes (county: KYCxxx, forecast zone: KYZxxx)
+        const ugcCodes: string[] = props.geocode?.UGC || [];
+        ugcCodes
+          .filter((c: string) => c.startsWith('KY'))
+          .forEach((c: string) => {
+            // Warning > Watch > Advisory priority
+            const existing = ugcCategory.get(c);
+            if (!existing || category === 'warning' || (category === 'watch' && existing === 'advisory')) {
+              ugcCategory.set(c, category);
+            }
+          });
       });
 
-      res.json({ warnings, watches, advisories });
+      // Fetch zone geometries for affected KY zones in two batch requests
+      // (county zones KYCxxx and forecast zones KYZxxx)
+      const allUgcCodes = Array.from(ugcCategory.keys());
+      const countyCodes = allUgcCodes.filter(c => c[2] === 'C');
+      const forecastCodes = allUgcCodes.filter(c => c[2] === 'Z');
+
+      const fetchZoneBatch = async (type: string, codes: string[]) => {
+        if (!codes.length) return [];
+        try {
+          const url = `https://api.weather.gov/zones/${type}?id=${codes.join(',')}&include_geometry=true`;
+          const r = await fetch(url);
+          if (!r.ok) return [];
+          const json = await r.json();
+          return (json.features || []) as any[];
+        } catch {
+          return [];
+        }
+      };
+
+      const [countyZones, forecastZones] = await Promise.all([
+        fetchZoneBatch('county', countyCodes),
+        fetchZoneBatch('forecast', forecastCodes),
+      ]);
+
+      const mapFeatures = [...countyZones, ...forecastZones]
+        .filter((f: any) => f.geometry)
+        .map((f: any) => {
+          const code = f.properties?.id as string;
+          const category = ugcCategory.get(code) || 'advisory';
+          return {
+            type: 'Feature',
+            geometry: f.geometry,
+            properties: { event: code, category },
+          };
+        });
+
+      res.json({ warnings, watches, advisories, mapFeatures });
     } catch (error) {
       console.error('Weather alerts error:', error);
       res.status(500).json({ message: 'Internal server error' });
