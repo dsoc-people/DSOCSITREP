@@ -303,18 +303,18 @@ function StationPlot({ station }: { station: StationData }) {
         <circle cx={cx} cy={cy} r={4} fill="black" stroke="white" strokeWidth="1.5" />
       </svg>
 
-      {/* Temperature (upper left) */}
+      {/* Temperature (upper left, close to station circle) */}
       <div style={{
-        position: 'absolute', top: 2, left: 2,
+        position: 'absolute', top: 14, left: 2,
         fontSize: '10px', fontWeight: 'bold', fontFamily: 'monospace',
         color: tempColor, lineHeight: 1, textShadow: shadow,
       }}>
         {tempDisplay}
       </div>
 
-      {/* Dewpoint (lower left) */}
+      {/* Dewpoint (lower left, close to station circle) */}
       <div style={{
-        position: 'absolute', bottom: 2, left: 2,
+        position: 'absolute', bottom: 14, left: 2,
         fontSize: '10px', fontWeight: 'bold', fontFamily: 'monospace',
         color: '#00ff99', lineHeight: 1, textShadow: shadow,
       }}>
