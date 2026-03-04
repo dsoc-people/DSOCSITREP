@@ -134,6 +134,8 @@ function MapController({ center, zoom }: { center: [number, number], zoom: numbe
   return null;
 }
 
+import { DivIcon } from "leaflet";
+
 function StationPlot({ station }: { station: StationData }) {
   const getTempColor = (t: number | "N/A") => {
     if (t === "N/A") return "#ffffff";
@@ -147,32 +149,34 @@ function StationPlot({ station }: { station: StationData }) {
   const rotation = typeof station.windDir === 'number' ? station.windDir : 0;
 
   return (
-    <div className="relative flex flex-col items-center justify-center p-0 m-0 leading-none pointer-events-none" style={{ width: '40px', height: '40px' }}>
+    <div className="flex flex-col items-center justify-center p-0 m-0 leading-none pointer-events-none" style={{ width: '60px', height: '60px', position: 'relative' }}>
       {/* Temp (Top Left) */}
-      <div className="absolute top-0 left-0 text-[10px] font-bold font-mono-tech" style={{ color: getTempColor(station.temp) }}>
+      <div className="absolute top-0 left-0 text-[11px] font-black font-mono-tech drop-shadow-[0_1px_2px_rgba(0,0,0,1)]" style={{ color: getTempColor(station.temp) }}>
         {station.temp}
       </div>
       {/* Dewpoint (Bottom Left) */}
-      <div className="absolute bottom-0 left-0 text-[10px] font-bold font-mono-tech text-[#00ff00]">
+      <div className="absolute bottom-0 left-0 text-[11px] font-black font-mono-tech text-[#00ff00] drop-shadow-[0_1px_2px_rgba(0,0,0,1)]">
         {station.dewpoint}
       </div>
-      {/* Wind Barb Placeholder (Center) */}
+      {/* Wind Barb (Center) */}
       <div className="flex items-center justify-center w-full h-full">
-        <div className="relative w-4 h-4 rounded-full border border-white/50 bg-background/50 flex items-center justify-center">
+        <div className="relative w-2 h-2 rounded-full bg-white shadow-lg border border-black/50">
            <div 
-             className="absolute w-0.5 h-6 bg-white origin-bottom" 
-             style={{ transform: `rotate(${rotation}deg) translateY(-3px)` }}
+             className="absolute bottom-1/2 left-1/2 w-0.5 h-8 bg-white origin-bottom" 
+             style={{ transform: `translateX(-50%) rotate(${rotation}deg)` }}
            >
-             {/* Simple wind speed indicator (very simplified barb) */}
+             {/* Simple wind speed indicator */}
              {typeof station.windSpeed === 'number' && station.windSpeed > 5 && (
-               <div className="absolute top-0 right-0 w-2 h-0.5 bg-white transform -rotate-45 origin-right"></div>
+               <div className="absolute top-0 left-0 w-3 h-0.5 bg-white transform -rotate-45 origin-left"></div>
+             )}
+             {typeof station.windSpeed === 'number' && station.windSpeed > 15 && (
+               <div className="absolute top-2 left-0 w-3 h-0.5 bg-white transform -rotate-45 origin-left"></div>
              )}
            </div>
-           <div className="w-1 h-1 rounded-full bg-primary z-10"></div>
         </div>
       </div>
       {/* ID (Right) */}
-      <div className="absolute right-0 text-[8px] font-black uppercase text-muted-foreground opacity-50">
+      <div className="absolute right-0 top-1/2 -translate-y-1/2 text-[8px] font-black uppercase text-white/60 tracking-tighter bg-black/20 px-0.5 rounded">
         {station.id}
       </div>
     </div>
@@ -335,24 +339,32 @@ export function MapArea({
         </Marker>
 
         {/* KY Stations Weather Plots */}
-        {stations.map((s) => (
+        {stations && stations.length > 0 && stations.map((s) => (
           <Marker 
-            key={s.id} 
+            key={`${s.id}-${s.temp}-${s.windDir}`} 
             position={[s.lat, s.lon]}
-            icon={L.divIcon({
-              className: "custom-div-icon",
-              html: `<div id="station-${s.id}"></div>`,
-              iconSize: [40, 40],
-              iconAnchor: [20, 20]
+            zIndexOffset={2000}
+            icon={new DivIcon({
+              className: "station-div-icon",
+              html: `<div id="station-${s.id}" style="width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; background: rgba(15,15,17,0.8); border-radius: 50%; border: 2px solid rgba(255,255,255,0.6); box-shadow: 0 0 15px rgba(0,0,0,0.9); backdrop-filter: blur(2px);"></div>`,
+              iconSize: [60, 60],
+              iconAnchor: [30, 30]
             })}
             eventHandlers={{
               add: (e) => {
-                const el = document.getElementById(`station-${s.id}`);
-                if (el) {
-                  import('react-dom/client').then(({ createRoot }) => {
-                    createRoot(el).render(<StationPlot station={s} />);
-                  });
-                }
+                const renderPlot = () => {
+                  const el = document.getElementById(`station-${s.id}`);
+                  if (el) {
+                    import('react-dom/client').then(({ createRoot }) => {
+                      const root = (el as any)._reactRoot || createRoot(el);
+                      (el as any)._reactRoot = root;
+                      root.render(<StationPlot station={s} />);
+                    });
+                  } else {
+                    setTimeout(renderPlot, 100);
+                  }
+                };
+                renderPlot();
               }
             }}
           />

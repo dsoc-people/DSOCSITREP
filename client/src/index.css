@@ -75,6 +75,11 @@
   .glass-panel {
     @apply bg-card/80 backdrop-blur-md border border-border/50 shadow-xl shadow-black/40;
   }
+
+  .station-div-icon {
+    background: transparent !important;
+    border: none !important;
+  }
 }
 
 /* Customizing Leaflet for dark mode */
