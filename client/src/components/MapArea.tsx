@@ -356,7 +356,7 @@ export function MapArea({
     const timer = setInterval(tick, 1000);
     return () => clearInterval(timer);
   }, []);
-  const kyCounties = useSpcGeoJson(true, "https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/kentucky-counties.geojson");
+  const kyCounties = useSpcGeoJson(true, "/api/ky-counties");
   const day1Outlook = useSpcGeoJson(!!showDay1, "https://www.spc.noaa.gov/products/outlook/day1otlk_cat.nolyr.geojson");
   const day2Outlook = useSpcGeoJson(!!showDay2, "https://www.spc.noaa.gov/products/outlook/day2otlk_cat.nolyr.geojson");
   const day3Outlook = useSpcGeoJson(!!showDay3, "https://www.spc.noaa.gov/products/outlook/day3otlk_cat.nolyr.geojson");
