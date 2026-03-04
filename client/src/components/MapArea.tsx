@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
+import kyCountiesGeoJson from "../../public/ky-counties.json";
 import { MapContainer, TileLayer, Marker, useMap, ZoomControl, ScaleControl, GeoJSON } from "react-leaflet";
 import L from "leaflet";
 
@@ -356,7 +357,6 @@ export function MapArea({
     const timer = setInterval(tick, 1000);
     return () => clearInterval(timer);
   }, []);
-  const kyCounties = useSpcGeoJson(true, "/api/ky-counties");
   const day1Outlook = useSpcGeoJson(!!showDay1, "https://www.spc.noaa.gov/products/outlook/day1otlk_cat.nolyr.geojson");
   const day2Outlook = useSpcGeoJson(!!showDay2, "https://www.spc.noaa.gov/products/outlook/day2otlk_cat.nolyr.geojson");
   const day3Outlook = useSpcGeoJson(!!showDay3, "https://www.spc.noaa.gov/products/outlook/day3otlk_cat.nolyr.geojson");
@@ -402,17 +402,16 @@ export function MapArea({
         )}
 
         {/* Kentucky county boundaries — always visible above radar/satellite */}
-        {kyCounties && (
-          <GeoJSON
-            data={kyCounties}
-            style={() => ({
-              color: "#ff3333",
-              weight: 1.5,
-              fill: false,
-              opacity: 1,
-            })}
-          />
-        )}
+        <GeoJSON
+          key="ky-counties"
+          data={kyCountiesGeoJson as any}
+          style={() => ({
+            color: "#ff3333",
+            weight: 1.5,
+            fill: false,
+            opacity: 1,
+          })}
+        />
 
         {/* City/road labels rendered above radar & satellite */}
         <TileLayer
