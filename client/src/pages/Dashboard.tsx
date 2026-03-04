@@ -46,6 +46,11 @@ export default function Dashboard() {
     refetchInterval: 300000,
   });
 
+  const { data: stationsData } = useQuery<any[]>({
+    queryKey: ["/api/weather/ky-stations"],
+    refetchInterval: 300000,
+  });
+
   const warningsCount = alertsData?.warnings?.length || 0;
   const watchesCount = alertsData?.watches?.length || 0;
   const advisoriesCount = alertsData?.advisories?.length || 0;
@@ -260,6 +265,7 @@ export default function Dashboard() {
           showSatellite={showSatellite}
           satelliteOpacity={satelliteOpacity}
           satelliteBand={satelliteBand}
+          stations={stationsData}
         />
 
         {/* YouTube Embed Tool Window */}

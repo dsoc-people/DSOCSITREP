@@ -14,6 +14,16 @@ L.Icon.Default.mergeOptions({
   shadowUrl: markerShadow,
 });
 
+interface StationData {
+  id: string;
+  lat: number;
+  lon: number;
+  temp: number | "N/A";
+  dewpoint: number | "N/A";
+  windSpeed: number | "N/A";
+  windDir: number | "N/A";
+}
+
 interface MapAreaProps {
   center: [number, number];
   zoom?: number;
@@ -26,6 +36,7 @@ interface MapAreaProps {
   showSatellite?: boolean;
   satelliteOpacity?: number;
   satelliteBand?: string;
+  stations?: StationData[];
 }
 
 function useSpcGeoJson(show: boolean | undefined, url: string) {
@@ -123,6 +134,51 @@ function MapController({ center, zoom }: { center: [number, number], zoom: numbe
   return null;
 }
 
+function StationPlot({ station }: { station: StationData }) {
+  const getTempColor = (t: number | "N/A") => {
+    if (t === "N/A") return "#ffffff";
+    if (t < 32) return "#00ffff";
+    if (t < 50) return "#00ff00";
+    if (t < 70) return "#ffff00";
+    if (t < 90) return "#ffa500";
+    return "#ff0000";
+  };
+
+  const rotation = typeof station.windDir === 'number' ? station.windDir : 0;
+
+  return (
+    <div className="relative flex flex-col items-center justify-center p-0 m-0 leading-none pointer-events-none" style={{ width: '40px', height: '40px' }}>
+      {/* Temp (Top Left) */}
+      <div className="absolute top-0 left-0 text-[10px] font-bold font-mono-tech" style={{ color: getTempColor(station.temp) }}>
+        {station.temp}
+      </div>
+      {/* Dewpoint (Bottom Left) */}
+      <div className="absolute bottom-0 left-0 text-[10px] font-bold font-mono-tech text-[#00ff00]">
+        {station.dewpoint}
+      </div>
+      {/* Wind Barb Placeholder (Center) */}
+      <div className="flex items-center justify-center w-full h-full">
+        <div className="relative w-4 h-4 rounded-full border border-white/50 bg-background/50 flex items-center justify-center">
+           <div 
+             className="absolute w-0.5 h-6 bg-white origin-bottom" 
+             style={{ transform: `rotate(${rotation}deg) translateY(-3px)` }}
+           >
+             {/* Simple wind speed indicator (very simplified barb) */}
+             {typeof station.windSpeed === 'number' && station.windSpeed > 5 && (
+               <div className="absolute top-0 right-0 w-2 h-0.5 bg-white transform -rotate-45 origin-right"></div>
+             )}
+           </div>
+           <div className="w-1 h-1 rounded-full bg-primary z-10"></div>
+        </div>
+      </div>
+      {/* ID (Right) */}
+      <div className="absolute right-0 text-[8px] font-black uppercase text-muted-foreground opacity-50">
+        {station.id}
+      </div>
+    </div>
+  );
+}
+
 export function MapArea({ 
   center, 
   zoom = 4, 
@@ -134,8 +190,8 @@ export function MapArea({
   radarOpacity = 0.65,
   showSatellite = false,
   satelliteOpacity = 0.5,
-  // Default to GOES-East CONUS Band 14 (long-wave IR)
-  satelliteBand = 'ch14'
+  satelliteBand = 'ch14',
+  stations = []
 }: MapAreaProps) {
   const day1Outlook = useSpcGeoJson(!!showDay1, "https://www.spc.noaa.gov/products/outlook/day1otlk_cat.nolyr.geojson");
   const day2Outlook = useSpcGeoJson(!!showDay2, "https://www.spc.noaa.gov/products/outlook/day2otlk_cat.nolyr.geojson");
@@ -277,6 +333,30 @@ export function MapArea({
             <div className="text-muted-foreground">Bowling Green, KY</div>
           </Popup>
         </Marker>
+
+        {/* KY Stations Weather Plots */}
+        {stations.map((s) => (
+          <Marker 
+            key={s.id} 
+            position={[s.lat, s.lon]}
+            icon={L.divIcon({
+              className: "custom-div-icon",
+              html: `<div id="station-${s.id}"></div>`,
+              iconSize: [40, 40],
+              iconAnchor: [20, 20]
+            })}
+            eventHandlers={{
+              add: (e) => {
+                const el = document.getElementById(`station-${s.id}`);
+                if (el) {
+                  import('react-dom/client').then(({ createRoot }) => {
+                    createRoot(el).render(<StationPlot station={s} />);
+                  });
+                }
+              }
+            }}
+          />
+        ))}
       </MapContainer>
 
       {/* Decorative GIS Overlay Elements */}
