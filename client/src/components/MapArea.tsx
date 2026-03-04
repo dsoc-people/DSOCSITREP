@@ -149,34 +149,39 @@ function StationPlot({ station }: { station: StationData }) {
   const rotation = typeof station.windDir === 'number' ? station.windDir : 0;
 
   return (
-    <div className="flex flex-col items-center justify-center p-0 m-0 leading-none pointer-events-none" style={{ width: '60px', height: '60px', position: 'relative' }}>
+    <div className="flex items-center justify-center p-0 m-0 leading-none pointer-events-none" style={{ width: '40px', height: '40px', position: 'relative' }}>
       {/* Temp (Top Left) */}
-      <div className="absolute top-0 left-0 text-[11px] font-black font-mono-tech drop-shadow-[0_1px_2px_rgba(0,0,0,1)]" style={{ color: getTempColor(station.temp) }}>
+      <div className="absolute top-[2px] left-[2px] text-[9px] font-bold font-mono" style={{ color: getTempColor(station.temp) }}>
         {station.temp}
       </div>
+      
       {/* Dewpoint (Bottom Left) */}
-      <div className="absolute bottom-0 left-0 text-[11px] font-black font-mono-tech text-[#00ff00] drop-shadow-[0_1px_2px_rgba(0,0,0,1)]">
+      <div className="absolute bottom-[2px] left-[2px] text-[9px] font-bold font-mono text-[#00ff00]">
         {station.dewpoint}
       </div>
-      {/* Wind Barb (Center) */}
-      <div className="flex items-center justify-center w-full h-full">
-        <div className="relative w-2 h-2 rounded-full bg-white shadow-lg border border-black/50">
-           <div 
-             className="absolute bottom-1/2 left-1/2 w-0.5 h-8 bg-white origin-bottom" 
-             style={{ transform: `translateX(-50%) rotate(${rotation}deg)` }}
-           >
-             {/* Simple wind speed indicator */}
-             {typeof station.windSpeed === 'number' && station.windSpeed > 5 && (
-               <div className="absolute top-0 left-0 w-3 h-0.5 bg-white transform -rotate-45 origin-left"></div>
-             )}
-             {typeof station.windSpeed === 'number' && station.windSpeed > 15 && (
-               <div className="absolute top-2 left-0 w-3 h-0.5 bg-white transform -rotate-45 origin-left"></div>
-             )}
-           </div>
-        </div>
+
+      {/* Sky Cover / Center Circle */}
+      <div className="w-3 h-3 rounded-full border border-white bg-black z-10 flex items-center justify-center overflow-hidden">
+        {/* Simplified sky cover: half-filled circle for visual interest */}
+        <div className="w-full h-1/2 bg-white self-start opacity-80" />
       </div>
-      {/* ID (Right) */}
-      <div className="absolute right-0 top-1/2 -translate-y-1/2 text-[8px] font-black uppercase text-white/60 tracking-tighter bg-black/20 px-0.5 rounded">
+
+      {/* Wind Barb */}
+      <div 
+        className="absolute w-0.5 h-10 bg-white origin-bottom bottom-1/2 left-1/2 -translate-x-1/2"
+        style={{ transform: `translateX(-50%) rotate(${rotation}deg)` }}
+      >
+        {/* Wind Speed Barbs (Flags) */}
+        {typeof station.windSpeed === 'number' && station.windSpeed > 5 && (
+          <div className="absolute top-0 right-0 w-3 h-0.5 bg-white transform -rotate-45 origin-right" />
+        )}
+        {typeof station.windSpeed === 'number' && station.windSpeed > 15 && (
+          <div className="absolute top-1.5 right-0 w-3 h-0.5 bg-white transform -rotate-45 origin-right" />
+        )}
+      </div>
+
+      {/* ID (Right) - Optional, kept small */}
+      <div className="absolute right-0 text-[7px] font-bold uppercase text-white/40 transform translate-x-full pl-1">
         {station.id}
       </div>
     </div>
@@ -346,25 +351,20 @@ export function MapArea({
             zIndexOffset={2000}
             icon={new DivIcon({
               className: "station-div-icon",
-              html: `<div id="station-${s.id}" style="width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; background: rgba(15,15,17,0.8); border-radius: 50%; border: 2px solid rgba(255,255,255,0.6); box-shadow: 0 0 15px rgba(0,0,0,0.9); backdrop-filter: blur(2px);"></div>`,
-              iconSize: [60, 60],
-              iconAnchor: [30, 30]
+              html: `<div id="station-${s.id}" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;"></div>`,
+              iconSize: [40, 40],
+              iconAnchor: [20, 20]
             })}
             eventHandlers={{
               add: (e) => {
-                const renderPlot = () => {
-                  const el = document.getElementById(`station-${s.id}`);
-                  if (el) {
-                    import('react-dom/client').then(({ createRoot }) => {
-                      const root = (el as any)._reactRoot || createRoot(el);
-                      (el as any)._reactRoot = root;
-                      root.render(<StationPlot station={s} />);
-                    });
-                  } else {
-                    setTimeout(renderPlot, 100);
-                  }
-                };
-                renderPlot();
+                const el = document.getElementById(`station-${s.id}`);
+                if (el) {
+                  import('react-dom/client').then(({ createRoot }) => {
+                    const root = (el as any)._reactRoot || createRoot(el);
+                    (el as any)._reactRoot = root;
+                    root.render(<StationPlot station={s} />);
+                  });
+                }
               }
             }}
           />
