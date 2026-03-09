@@ -187,8 +187,20 @@ export default function Dashboard() {
                           <SelectContent className="z-[800]">
                             <SelectItem value="ch01">Band 01: Blue</SelectItem>
                             <SelectItem value="ch02">Band 02: Red</SelectItem>
+                            <SelectItem value="ch03">Band 03: Veggie</SelectItem>
+                            <SelectItem value="ch04">Band 04: Cirrus</SelectItem>
+                            <SelectItem value="ch05">Band 05: Snow/Ice</SelectItem>
+                            <SelectItem value="ch06">Band 06: Cloud Particle</SelectItem>
+                            <SelectItem value="ch07">Band 07: Shortwave IR</SelectItem>
+                            <SelectItem value="ch08">Band 08: Upper Water Vapor</SelectItem>
+                            <SelectItem value="ch09">Band 09: Mid Water Vapor</SelectItem>
+                            <SelectItem value="ch10">Band 10: Low Water Vapor</SelectItem>
+                            <SelectItem value="ch11">Band 11: Cloud Top</SelectItem>
+                            <SelectItem value="ch12">Band 12: Ozone</SelectItem>
                             <SelectItem value="ch13">Band 13: Clean IR</SelectItem>
                             <SelectItem value="ch14">Band 14: LWIR</SelectItem>
+                            <SelectItem value="ch15">Band 15: Dirty IR</SelectItem>
+                            <SelectItem value="ch16">Band 16: CO2</SelectItem>
                           </SelectContent>
                         </Select>
 

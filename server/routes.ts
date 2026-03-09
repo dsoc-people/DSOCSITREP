@@ -158,17 +158,14 @@ export async function registerRoutes(
   // SPC Active Mesoscale Discussions (proxy to avoid CORS on some deployments)
   app.get("/api/weather/mcd", async (req, res) => {
     try {
-      // Try to fetch GeoJSON first as it's easier to parse, but the user suggested KMZ as a fallback/source
-      const r = await fetch('https://www.spc.noaa.gov/products/md/ActiveMD.geojson');
-      if (r.ok) {
-        const data = await r.json();
-        return res.json(data);
-      }
-      
-      // If geojson fails or is empty, we could theoretically parse KMZ here if we had a library,
-      // but usually SPC provides both. We'll stick to the GeoJSON endpoint for now as it's the standard for this app.
-      res.json({ type: 'FeatureCollection', features: [] });
-    } catch {
+      const response = await fetch('https://www.spc.noaa.gov/products/md/ActiveMD.geojson', {
+        headers: { "User-Agent": "KAIR-WKU/1.0 (dsoc@wku.edu)" }
+      });
+      if (!response.ok) return res.json({ type: 'FeatureCollection', features: [] });
+      const data = await response.json();
+      res.json(data);
+    } catch (error) {
+      console.error('MCD fetch error:', error);
       res.json({ type: 'FeatureCollection', features: [] });
     }
   });
@@ -176,11 +173,14 @@ export async function registerRoutes(
   // SPC Active Watch Boxes proxy (avoids CORS when served from browser)
   app.get("/api/weather/watches", async (_req: any, res: any) => {
     try {
-      const r = await fetch('https://www.spc.noaa.gov/products/watch/ActiveWW.geojson');
-      if (!r.ok) return res.json({ type: 'FeatureCollection', features: [] });
-      const data = await r.json();
+      const response = await fetch('https://www.spc.noaa.gov/products/watch/ActiveWW.geojson', {
+        headers: { "User-Agent": "KAIR-WKU/1.0 (dsoc@wku.edu)" }
+      });
+      if (!response.ok) return res.json({ type: 'FeatureCollection', features: [] });
+      const data = await response.json();
       res.json(data);
-    } catch {
+    } catch (error) {
+      console.error('Watches fetch error:', error);
       res.json({ type: 'FeatureCollection', features: [] });
     }
   });

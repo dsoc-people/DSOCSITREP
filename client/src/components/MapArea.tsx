@@ -653,6 +653,71 @@ export function MapArea({
           })}
         />
 
+        {/* SPC Watches */}
+        {showSpcWatches && spcWatchData && (
+          <GeoJSON
+            key={`spc-watches-${JSON.stringify(spcWatchData).length}`}
+            data={spcWatchData}
+            style={() => ({
+              color: "#ffff00",
+              weight: 2,
+              fillColor: "#ffff00",
+              fillOpacity: 0.2
+            })}
+            onEachFeature={(feature, layer) => {
+              const props = feature.properties || {};
+              const watchNum = props.sel_number || props.watch_number || "N/A";
+              layer.bindPopup(`
+                <div class="p-2 font-sans text-black">
+                  <h3 class="font-bold text-lg mb-1">Watch #${watchNum}</h3>
+                  <p class="text-sm mb-2">${props.sel_issue || 'Active Watch'}</p>
+                  <a href="https://www.spc.noaa.gov/products/watch/ww${watchNum.toString().padStart(4, '0')}.html" 
+                     target="_blank" class="text-blue-600 underline text-xs font-bold">Read Full Discussion</a>
+                </div>
+              `);
+            }}
+          />
+        )}
+
+        {/* SPC MCDs */}
+        {showMcd && mcdData && (
+          <GeoJSON
+            key={`spc-mcd-${JSON.stringify(mcdData).length}`}
+            data={mcdData}
+            style={() => ({
+              color: "#9B30FF",
+              weight: 3,
+              fillColor: "#9B30FF",
+              fillOpacity: 0.3
+            })}
+            onEachFeature={(feature, layer) => {
+              const props = feature.properties || {};
+              const mdNum = props.md_number || "N/A";
+              layer.bindPopup(`
+                <div class="p-2 font-sans text-black max-w-sm">
+                  <h3 class="font-bold text-lg mb-1">MCD #${mdNum}</h3>
+                  <p class="text-sm font-bold mb-1">${props.md_location || ''}</p>
+                  <div class="text-xs mb-2 line-clamp-4">${props.md_discussion || 'Discussion active'}</div>
+                  <a href="https://www.spc.noaa.gov/products/md/md${mdNum.toString().padStart(4, '0')}.html" 
+                     target="_blank" class="text-blue-600 underline text-xs font-bold">Read Full Text</a>
+                </div>
+              `, { maxWidth: 350 });
+            }}
+          />
+        )}
+
+        {/* NOAA official WWA polygons */}
+        {showNwsAlerts && nwsWwaData && (
+          <GeoJSON
+            key={`nws-wwa-${JSON.stringify(nwsWwaData).length}`}
+            data={nwsWwaData}
+            style={(feature) => {
+              const props = feature?.properties || {};
+              return getNwsAlertStyle(props.eventName, "");
+            }}
+          />
+        )}
+
         {/* City/road labels on top */}
         <TileLayer
           url="https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png"
