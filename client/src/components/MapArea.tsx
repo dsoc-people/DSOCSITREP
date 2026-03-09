@@ -571,6 +571,7 @@ export function MapArea({
   // SPC active watch boxes — proxied through server to avoid CORS
   const spcWatchData = useSpcGeoJson(!!showSpcWatches, "/api/weather/watches");
   // SPC active Mesoscale Discussions — proxied through server for CORS reliability
+  // Using the GeoJSON endpoint which is the standard programmatic equivalent of the KMZ
   const mcdData = useSpcGeoJson(!!showMcd, "/api/weather/mcd");
   // NOAA official WWA polygons from ArcGIS FeatureServer (national coverage, official geometries)
   const nwsWwaData = useSpcGeoJson(!!showNwsAlerts, "/api/weather/nws-wwa");
