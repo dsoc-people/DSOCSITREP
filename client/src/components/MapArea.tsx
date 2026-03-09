@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import kyCountiesGeoJson from "../../public/ky-counties.json";
-import { MapContainer, TileLayer, Marker, useMap, ZoomControl, ScaleControl, GeoJSON } from "react-leaflet";
+import { MapContainer, TileLayer, WMSTileLayer, Marker, CircleMarker, useMap, ZoomControl, ScaleControl, GeoJSON } from "react-leaflet";
 import L from "leaflet";
 
 // Fix Leaflet's default icon path issues in React
@@ -39,6 +39,14 @@ interface MapAreaProps {
   satelliteBand?: string;
   stations?: StationData[];
   alertFeatures?: any[];
+  showNwsAlerts?: boolean;
+  showSpcWatches?: boolean;
+  showSurfaceAnalysis?: boolean;
+  surfaceAnalysisOpacity?: number;
+  showUpperAir?: boolean;
+  upperAirOpacity?: number;
+  showLightning?: boolean;
+  showMcd?: boolean;
 }
 
 function useSpcGeoJson(show: boolean | undefined, url: string) {
@@ -80,84 +88,136 @@ function getSpcCategoryColor(label: string | undefined | null) {
     case "TSTM":
     case "GENERAL THUNDERSTORMS":
     case "GENERAL THUNDERSTORMS RISK":
-      return "#55BB55"; // SPC general thunder green
+      return "#55BB55";
     case "MRGL":
     case "MARGINAL":
-      return "#00FF00"; // bright green
+      return "#00FF00";
     case "SLGT":
     case "SLIGHT":
-      return "#FFFF00"; // yellow
+      return "#FFFF00";
     case "ENH":
     case "ENHANCED":
-      return "#FFA500"; // orange
+      return "#FFA500";
     case "MDT":
     case "MODERATE":
-      return "#FF0000"; // red
+      return "#FF0000";
     case "HIGH":
-      return "#FF00FF"; // magenta
+      return "#FF00FF";
     default:
-      return "#FFFFFF"; // fallback white
+      return "#FFFFFF";
   }
 }
 
 function getSpcTornadoColor(label: string | undefined | null) {
   const key = (label || "").replace("%", "");
   switch (key) {
-    case "2":
-      return "#99FF99"; // light green
-    case "5":
-      return "#00FF00"; // green
-    case "10":
-      return "#FFFF00"; // yellow
-    case "15":
-      return "#FFA500"; // orange
-    case "30":
-      return "#FF0000"; // red
-    case "45":
-      return "#FF00FF"; // magenta
-    case "60":
-      return "#FF0000"; // intense red for very high probs
-    default:
-      return "#FFFFFF";
+    case "2":   return "#99FF99";
+    case "5":   return "#00FF00";
+    case "10":  return "#FFFF00";
+    case "15":  return "#FFA500";
+    case "30":  return "#FF0000";
+    case "45":  return "#FF00FF";
+    case "60":  return "#FF0000";
+    default:    return "#FFFFFF";
   }
 }
 
-// Injects NWS-color diagonal hatch patterns into Leaflet's SVG overlay layer
-// so GeoJSON fills can reference them via url(#id)
-function AlertPatternDefs() {
-  const map = useMap();
+/**
+ * Official NWS product colors based on the NWS Operations Manual / VTEC color table.
+ * Returns { color: strokeColor, fillOpacity: number }
+ */
+function getNwsAlertStyle(eventName: string, category: string): { color: string; fillOpacity: number } {
+  const e = (eventName || "").toLowerCase();
 
-  useEffect(() => {
-    const inject = () => {
-      const pane = map.getPane('overlayPane');
-      if (!pane) return;
-      const svg = pane.querySelector('svg');
-      if (!svg || svg.querySelector('#nws-warn-hatch')) return;
+  // --- Tornado ---
+  if (e.includes("tornado warning"))                return { color: "#FF0000", fillOpacity: 0.4 };
+  if (e.includes("tornado watch"))                  return { color: "#FFFF00", fillOpacity: 0.25 };
 
-      const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-      defs.innerHTML = `
-        <pattern id="nws-warn-hatch" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
-          <rect width="8" height="8" fill="#FF0000" fill-opacity="0.2"/>
-          <line x1="0" y1="0" x2="0" y2="8" stroke="#FF0000" stroke-width="3"/>
-        </pattern>
-        <pattern id="nws-watch-hatch" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
-          <rect width="8" height="8" fill="#FFFF00" fill-opacity="0.12"/>
-          <line x1="0" y1="0" x2="0" y2="8" stroke="#FFFF00" stroke-width="3"/>
-        </pattern>
-        <pattern id="nws-adv-hatch" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
-          <rect width="8" height="8" fill="#00AAFF" fill-opacity="0.12"/>
-          <line x1="0" y1="0" x2="0" y2="8" stroke="#00AAFF" stroke-width="3"/>
-        </pattern>
-      `;
-      svg.insertBefore(defs, svg.firstChild);
-    };
+  // --- Severe Thunderstorm ---
+  if (e.includes("severe thunderstorm warning"))    return { color: "#FFA500", fillOpacity: 0.4 };
+  if (e.includes("severe thunderstorm watch"))      return { color: "#DB7093", fillOpacity: 0.25 };
 
-    inject();
-    map.on('layeradd', inject);
-    return () => { map.off('layeradd', inject); };
-  }, [map]);
+  // --- Flash Flood ---
+  if (e.includes("flash flood emergency"))          return { color: "#FF00FF", fillOpacity: 0.5 };
+  if (e.includes("flash flood warning"))            return { color: "#8B0000", fillOpacity: 0.4 };
+  if (e.includes("flash flood watch"))              return { color: "#2E8B57", fillOpacity: 0.25 };
+  if (e.includes("flash flood statement"))          return { color: "#00FF00", fillOpacity: 0.15 };
 
-  return null;
+  // --- Flood ---
+  if (e.includes("flood warning"))                  return { color: "#00FF00", fillOpacity: 0.4 };
+  if (e.includes("flood advisory"))                 return { color: "#00FF7F", fillOpacity: 0.25 };
+  if (e.includes("flood watch"))                    return { color: "#2E8B57", fillOpacity: 0.25 };
+  if (e.includes("flood statement"))                return { color: "#00FF7F", fillOpacity: 0.15 };
+
+  // --- Winter / Ice / Snow ---
+  if (e.includes("blizzard warning"))               return { color: "#FF4500", fillOpacity: 0.4 };
+  if (e.includes("ice storm warning"))              return { color: "#8B008B", fillOpacity: 0.4 };
+  if (e.includes("winter storm warning"))           return { color: "#FF69B4", fillOpacity: 0.4 };
+  if (e.includes("winter storm watch"))             return { color: "#4169E1", fillOpacity: 0.25 };
+  if (e.includes("winter storm advisory"))          return { color: "#6495ED", fillOpacity: 0.3 };
+  if (e.includes("winter weather advisory"))        return { color: "#7B68EE", fillOpacity: 0.3 };
+  if (e.includes("freezing rain advisory"))         return { color: "#DA70D6", fillOpacity: 0.3 };
+  if (e.includes("freezing drizzle advisory"))      return { color: "#DA70D6", fillOpacity: 0.3 };
+  if (e.includes("lake effect snow warning"))       return { color: "#008B8B", fillOpacity: 0.4 };
+  if (e.includes("lake effect snow watch"))         return { color: "#87CEFA", fillOpacity: 0.25 };
+  if (e.includes("lake effect snow advisory"))      return { color: "#48D1CC", fillOpacity: 0.3 };
+  if (e.includes("heavy snow warning"))             return { color: "#FF69B4", fillOpacity: 0.4 };
+  if (e.includes("snow squall warning"))            return { color: "#C71585", fillOpacity: 0.4 };
+  if (e.includes("snow advisory"))                  return { color: "#6495ED", fillOpacity: 0.3 };
+  if (e.includes("blowing snow advisory"))          return { color: "#6495ED", fillOpacity: 0.3 };
+  if (e.includes("hard freeze warning"))            return { color: "#9400D3", fillOpacity: 0.4 };
+  if (e.includes("hard freeze watch"))              return { color: "#4169E1", fillOpacity: 0.25 };
+  if (e.includes("freeze warning"))                 return { color: "#483D8B", fillOpacity: 0.4 };
+  if (e.includes("freeze watch"))                   return { color: "#00CED1", fillOpacity: 0.25 };
+  if (e.includes("frost advisory"))                 return { color: "#6495ED", fillOpacity: 0.3 };
+
+  // --- Wind ---
+  if (e.includes("extreme wind warning"))           return { color: "#FF8C00", fillOpacity: 0.4 };
+  if (e.includes("high wind warning"))              return { color: "#DAA520", fillOpacity: 0.4 };
+  if (e.includes("high wind watch"))                return { color: "#B8860B", fillOpacity: 0.25 };
+  if (e.includes("wind advisory"))                  return { color: "#D2B48C", fillOpacity: 0.3 };
+
+  // --- Heat ---
+  if (e.includes("excessive heat warning"))         return { color: "#C71585", fillOpacity: 0.4 };
+  if (e.includes("excessive heat watch"))           return { color: "#800000", fillOpacity: 0.25 };
+  if (e.includes("heat advisory"))                  return { color: "#FF7F50", fillOpacity: 0.3 };
+
+  // --- Fire ---
+  if (e.includes("red flag warning"))               return { color: "#FF1493", fillOpacity: 0.4 };
+  if (e.includes("fire weather watch"))             return { color: "#FFDEAD", fillOpacity: 0.25 };
+
+  // --- Dense Fog / Smoke ---
+  if (e.includes("dense fog advisory"))             return { color: "#708090", fillOpacity: 0.3 };
+  if (e.includes("dense smoke advisory"))           return { color: "#F4A460", fillOpacity: 0.3 };
+
+  // --- Tropical ---
+  if (e.includes("hurricane warning"))              return { color: "#DC143C", fillOpacity: 0.4 };
+  if (e.includes("hurricane watch"))                return { color: "#FF00FF", fillOpacity: 0.25 };
+  if (e.includes("storm surge warning"))            return { color: "#B524F7", fillOpacity: 0.4 };
+  if (e.includes("storm surge watch"))              return { color: "#DB7FF7", fillOpacity: 0.25 };
+  if (e.includes("tropical storm warning"))         return { color: "#B22222", fillOpacity: 0.4 };
+  if (e.includes("tropical storm watch"))           return { color: "#F08080", fillOpacity: 0.25 };
+
+  // --- Coastal / Marine ---
+  if (e.includes("coastal flood warning"))          return { color: "#228B22", fillOpacity: 0.4 };
+  if (e.includes("coastal flood watch"))            return { color: "#66CDAA", fillOpacity: 0.25 };
+  if (e.includes("coastal flood advisory"))         return { color: "#7CFC00", fillOpacity: 0.3 };
+  if (e.includes("high surf warning"))              return { color: "#228B22", fillOpacity: 0.4 };
+  if (e.includes("high surf advisory"))             return { color: "#BA55D3", fillOpacity: 0.3 };
+  if (e.includes("rip current statement"))          return { color: "#40E0D0", fillOpacity: 0.2 };
+
+  // --- Air Quality ---
+  if (e.includes("air quality alert"))              return { color: "#808080", fillOpacity: 0.3 };
+
+  // --- Special / Misc ---
+  if (e.includes("special weather statement"))      return { color: "#FFE4B5", fillOpacity: 0.2 };
+  if (e.includes("hazardous weather outlook"))      return { color: "#EEE8AA", fillOpacity: 0.15 };
+  if (e.includes("severe weather statement"))       return { color: "#00FFFF", fillOpacity: 0.2 };
+
+  // --- Category fallbacks ---
+  if (category === "warning")   return { color: "#FF0000", fillOpacity: 0.35 };
+  if (category === "watch")     return { color: "#FFFF00", fillOpacity: 0.25 };
+  return                               { color: "#00AAFF", fillOpacity: 0.2 };
 }
 
 // Component to handle imperative map flyTo when center prop changes
@@ -179,8 +239,6 @@ import { DivIcon } from "leaflet";
 function StationMarker({ station }: { station: StationData }) {
   const rootRef = useRef<any>(null);
 
-  // Memoize icon by station.id only — prevents Leaflet from replacing the
-  // DOM element (and wiping React content) on every parent re-render
   const icon = useMemo(() => new DivIcon({
     className: "station-div-icon",
     html: `<div id="station-${station.id}" style="width:60px;height:60px;"></div>`,
@@ -197,7 +255,6 @@ function StationMarker({ station }: { station: StationData }) {
     });
   }, [station]);
 
-  // Re-render the plot when live data updates without removing the marker
   useEffect(() => {
     if (rootRef.current) {
       rootRef.current.render(<StationPlot station={station} />);
@@ -224,17 +281,14 @@ function StationPlot({ station }: { station: StationData }) {
     return "#ff0000";
   };
 
-  // Simplified WBGT approximation (no solar radiation or pressure available)
-  // Wet bulb ≈ average of temp and dewpoint (same as Python's dbdp2wb)
-  // WBGT ≈ 0.7 * Twb + 0.3 * Tdb (globe term omitted without SRAD)
   const getWbgtColor = (tempF: number | "N/A", dpF: number | "N/A"): string => {
     if (tempF === "N/A" || dpF === "N/A") return "#ffffff";
     const wetBulbF = ((tempF as number) + (dpF as number)) / 2;
     const wbgtF = 0.7 * wetBulbF + 0.3 * (tempF as number);
-    if (wbgtF < 66) return "#008000"; // Green
-    if (wbgtF < 74) return "#FEF200"; // Yellow
-    if (wbgtF < 83) return "#FF0000"; // Red
-    return "#000000";                 // Black
+    if (wbgtF < 66) return "#008000";
+    if (wbgtF < 74) return "#FEF200";
+    if (wbgtF < 83) return "#FF0000";
+    return "#000000";
   };
 
   const cx = 30, cy = 30;
@@ -243,10 +297,8 @@ function StationPlot({ station }: { station: StationData }) {
   const windSpeedVal = typeof station.windSpeed === 'number' ? station.windSpeed : 0;
   const barbColor = getWbgtColor(station.temp, station.dewpoint);
 
-  // Staff points in the direction wind comes FROM (met convention)
-  // SVG angle = (windDir - 90) degrees from east, clockwise
   let staffEndX = cx;
-  let staffEndY = cy - staffLen; // default calm: point north
+  let staffEndY = cy - staffLen;
 
   if (windDirDeg !== null) {
     const rad = (windDirDeg - 90) * Math.PI / 180;
@@ -254,8 +306,6 @@ function StationPlot({ station }: { station: StationData }) {
     staffEndY = cy + staffLen * Math.sin(rad);
   }
 
-  // Build wind barb feathers along the staff
-  // Encoding: pennant = 50 mph, long barb = 10 mph, short barb = 5 mph
   const barbElems: any[] = [];
 
   if (windDirDeg !== null && windSpeedVal >= 3) {
@@ -320,13 +370,11 @@ function StationPlot({ station }: { station: StationData }) {
     <div style={{ width: '60px', height: '60px', position: 'relative', pointerEvents: 'none' }}>
       <svg width="60" height="60" style={{ position: 'absolute', top: 0, left: 0, overflow: 'visible' }}>
         <defs>
-          {/* White glow so black-category barbs are visible on dark map */}
           <filter id={filterId} x="-50%" y="-50%" width="200%" height="200%">
             <feDropShadow dx="0" dy="0" stdDeviation="1.2" floodColor="white" floodOpacity="0.9" />
           </filter>
         </defs>
 
-        {/* Wind staff + barbs, colored by WBGT category */}
         <g filter={`url(#${filterId})`}>
           {windDirDeg !== null && windSpeedVal >= 3 && (
             <line x1={cx} y1={cy} x2={staffEndX.toFixed(1)} y2={staffEndY.toFixed(1)}
@@ -335,14 +383,12 @@ function StationPlot({ station }: { station: StationData }) {
           {barbElems}
         </g>
 
-        {/* Station circle (calm = two concentric circles) */}
         {(windDirDeg === null || windSpeedVal < 3) && (
           <circle cx={cx} cy={cy} r={7} fill="none" stroke="white" strokeWidth="1" />
         )}
         <circle cx={cx} cy={cy} r={4} fill="black" stroke="white" strokeWidth="1.5" />
       </svg>
 
-      {/* Temperature (upper left, close to station circle) */}
       <div style={{
         position: 'absolute', top: 14, left: 2,
         fontSize: '10px', fontWeight: 'bold', fontFamily: 'monospace',
@@ -351,7 +397,6 @@ function StationPlot({ station }: { station: StationData }) {
         {tempDisplay}
       </div>
 
-      {/* Dewpoint (lower left, close to station circle) */}
       <div style={{
         position: 'absolute', bottom: 14, left: 2,
         fontSize: '10px', fontWeight: 'bold', fontFamily: 'monospace',
@@ -363,10 +408,119 @@ function StationPlot({ station }: { station: StationData }) {
   );
 }
 
-function getAlertColor(category: string) {
-  if (category === 'warning') return '#FF0000';
-  if (category === 'watch') return '#FFA500';
-  return '#00AAFF'; // advisory
+interface LightningStrike {
+  lat: number;
+  lon: number;
+  time: number; // ms since epoch
+}
+
+/**
+ * Real-time lightning strikes via Blitzortung WebSocket.
+ * Color-coded by age: white (<1 min) → yellow → orange → red-orange (>8 min).
+ * Max 20-minute window, up to 1000 strikes in memory.
+ */
+function LightningLayer({ enabled }: { enabled: boolean }) {
+  const [strikes, setStrikes] = useState<LightningStrike[]>([]);
+  const wsRef = useRef<WebSocket | null>(null);
+  const enabledRef = useRef(enabled);
+  enabledRef.current = enabled;
+
+  useEffect(() => {
+    if (!enabled) {
+      setStrikes([]);
+      wsRef.current?.close();
+      wsRef.current = null;
+      return;
+    }
+
+    const addStrike = (lat: number, lon: number) => {
+      const now = Date.now();
+      setStrikes((prev) => {
+        const fresh = prev.filter((s) => now - s.time < 20 * 60 * 1000).slice(-999);
+        return [...fresh, { lat, lon, time: now }];
+      });
+    };
+
+    const tryConnect = (attempt: number = 1) => {
+      const serverNum = ((attempt - 1) % 7) + 1; // cycle ws1–ws7
+      const ws = new WebSocket(`wss://ws${serverNum}.blitzortung.org/`);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        // Subscribe to continental US bounding box
+        ws.send(JSON.stringify({ west: -130, east: -60, north: 55, south: 20 }));
+      };
+
+      ws.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data as string);
+          // Standard Blitzortung format: top-level lat/lon fields
+          if (typeof data.lat === "number" && typeof data.lon === "number") {
+            addStrike(data.lat, data.lon);
+          }
+          // Array-of-strikes format used by some server versions
+          if (Array.isArray(data.s)) {
+            (data.s as number[][]).forEach((s) => {
+              if (s.length >= 3) addStrike(s[1], s[2]);
+            });
+          }
+        } catch (_) {/* ignore malformed frames */}
+      };
+
+      ws.onerror = () => { ws.close(); };
+
+      ws.onclose = () => {
+        if (enabledRef.current && wsRef.current === ws) {
+          // Exponential back-off capped at 15 s, then try next server
+          const delay = Math.min(2000 * attempt, 15000);
+          setTimeout(() => { if (enabledRef.current) tryConnect(attempt + 1); }, delay);
+        }
+      };
+    };
+
+    tryConnect();
+
+    // Prune old strikes every 30 s
+    const prune = setInterval(() => {
+      const cutoff = Date.now() - 20 * 60 * 1000;
+      setStrikes((prev) => prev.filter((s) => s.time > cutoff));
+    }, 30000);
+
+    return () => {
+      clearInterval(prune);
+      wsRef.current?.close();
+      wsRef.current = null;
+    };
+  }, [enabled]);
+
+  const now = Date.now();
+  return (
+    <>
+      {strikes.map((strike, i) => {
+        const age = now - strike.time;
+        const maxAge = 20 * 60 * 1000;
+        const opacity = Math.max(0.08, 1 - (age / maxAge) * 0.92);
+        const color =
+          age < 60_000      ? "#FFFFFF" :  // <1 min: white flash
+          age < 3 * 60_000  ? "#FFFF00" :  // <3 min: yellow
+          age < 8 * 60_000  ? "#FFA500" :  // <8 min: orange
+                              "#FF4400";   // >8 min: red-orange fade
+        const radius = age < 60_000 ? 5 : age < 3 * 60_000 ? 3 : 2;
+        return (
+          <CircleMarker
+            key={`${strike.time}-${i}`}
+            center={[strike.lat, strike.lon]}
+            radius={radius}
+            fillColor={color}
+            color={color}
+            weight={0.5}
+            fillOpacity={opacity}
+            opacity={opacity * 0.7}
+          />
+        );
+      })}
+    </>
+  );
 }
 
 export function MapArea({
@@ -383,11 +537,18 @@ export function MapArea({
   satelliteBand = 'ch14',
   stations = [],
   alertFeatures = [],
+  showNwsAlerts = true,
+  showSpcWatches = false,
+  showSurfaceAnalysis = false,
+  surfaceAnalysisOpacity = 0.8,
+  showUpperAir = false,
+  upperAirOpacity = 0.7,
+  showLightning = false,
+  showMcd = false,
 }: MapAreaProps) {
   // Bust tile cache every 2 minutes for radar, 10 minutes for satellite
   const [radarTs, setRadarTs] = useState(() => Math.floor(Date.now() / 120000));
   const [satTs, setSatTs]     = useState(() => Math.floor(Date.now() / 600000));
-  // Countdown display (seconds until next refresh)
   const [radarCountdown, setRadarCountdown] = useState(0);
   const [satCountdown,   setSatCountdown]   = useState(0);
 
@@ -403,29 +564,34 @@ export function MapArea({
     const timer = setInterval(tick, 1000);
     return () => clearInterval(timer);
   }, []);
+
   const day1Outlook = useSpcGeoJson(!!showDay1, "https://www.spc.noaa.gov/products/outlook/day1otlk_cat.nolyr.geojson");
   const day2Outlook = useSpcGeoJson(!!showDay2, "https://www.spc.noaa.gov/products/outlook/day2otlk_cat.nolyr.geojson");
   const day3Outlook = useSpcGeoJson(!!showDay3, "https://www.spc.noaa.gov/products/outlook/day3otlk_cat.nolyr.geojson");
   const day1Tornado = useSpcGeoJson(!!showTornado, "https://www.spc.noaa.gov/products/outlook/day1otlk_torn.nolyr.geojson");
+  // SPC active watch boxes (actual polygon boundaries, separate from county-based NWS alerts)
+  const spcWatchData = useSpcGeoJson(!!showSpcWatches, "https://www.spc.noaa.gov/products/watch/ActiveWW.geojson");
+  // SPC active Mesoscale Discussions — proxied through server for CORS reliability
+  const mcdData = useSpcGeoJson(!!showMcd, "/api/weather/mcd");
 
   return (
     <div className="relative w-full h-full bg-background z-0">
-      <MapContainer 
-        center={center} 
-        zoom={zoom} 
+      <MapContainer
+        center={center}
+        zoom={zoom}
         style={{ height: '100%', width: '100%', zIndex: 0 }}
         zoomControl={false}
       >
         <MapController center={center} zoom={zoom} />
 
-        {/* Dark base map WITHOUT labels (labels rendered on top separately) */}
+        {/* Dark base map WITHOUT labels */}
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
           url="https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png"
           maxZoom={19}
         />
 
-        {/* GOES-East CONUS Satellite Layer (IEM) — refreshes every 10 min */}
+        {/* GOES-East CONUS Satellite Layer */}
         {showSatellite && (
           <TileLayer
             key={`sat-${satTs}`}
@@ -436,7 +602,7 @@ export function MapArea({
           />
         )}
 
-        {/* Live Weather Radar Overlay (Iowa State Mesonet NEXRAD) — refreshes every 2 min */}
+        {/* Live Weather Radar Overlay */}
         {showRadar && (
           <TileLayer
             key={`radar-${radarTs}`}
@@ -447,7 +613,33 @@ export function MapArea({
           />
         )}
 
-        {/* Kentucky county boundaries — always visible above radar/satellite */}
+        {/* NOAA nowcoast Surface Analysis (fronts, highs, lows) */}
+        {showSurfaceAnalysis && (
+          <WMSTileLayer
+            url="https://nowcoast.noaa.gov/arcgis/services/meteorology/surface_analysis_fronts/MapServer/WmsServer"
+            layers="0"
+            format="image/png"
+            transparent={true}
+            version="1.3.0"
+            opacity={surfaceAnalysisOpacity}
+            attribution='Surface Analysis &copy; <a href="https://nowcoast.noaa.gov">NOAA nowCOAST</a>'
+          />
+        )}
+
+        {/* NOAA nowcoast Upper Air Analysis (500mb heights, vorticity) */}
+        {showUpperAir && (
+          <WMSTileLayer
+            url="https://nowcoast.noaa.gov/arcgis/services/meteorology/upper_air_analysis/MapServer/WmsServer"
+            layers="0"
+            format="image/png"
+            transparent={true}
+            version="1.3.0"
+            opacity={upperAirOpacity}
+            attribution='Upper Air Analysis &copy; <a href="https://nowcoast.noaa.gov">NOAA nowCOAST</a>'
+          />
+        )}
+
+        {/* Kentucky county boundaries */}
         <GeoJSON
           key="ky-counties"
           data={kyCountiesGeoJson as any}
@@ -459,32 +651,22 @@ export function MapArea({
           })}
         />
 
-        {/* City/road labels rendered above radar & satellite */}
+        {/* City/road labels on top */}
         <TileLayer
           url="https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png"
           maxZoom={19}
           zIndex={400}
         />
 
-        {/* SPC Day 1 Convective Outlook (GeoJSON from SPC) */}
+        {/* SPC Day 1 Convective Outlook */}
         {showDay1 && day1Outlook && (
           <GeoJSON
             data={day1Outlook}
             style={(feature) => {
               const props = (feature?.properties as any) || {};
-              const label =
-                props.LABEL2 ??
-                props.LABEL ??
-                props.category;
+              const label = props.LABEL2 ?? props.LABEL ?? props.category;
               const baseColor = getSpcCategoryColor(label);
-              const stroke = props.stroke || baseColor;
-              const fill = props.fill || baseColor;
-              return {
-                color: stroke,
-                weight: 2,
-                fillColor: fill,
-                fillOpacity: 0.25,
-              };
+              return { color: props.stroke || baseColor, weight: 2, fillColor: props.fill || baseColor, fillOpacity: 0.25 };
             }}
           />
         )}
@@ -495,19 +677,9 @@ export function MapArea({
             data={day2Outlook}
             style={(feature) => {
               const props = (feature?.properties as any) || {};
-              const label =
-                props.LABEL2 ??
-                props.LABEL ??
-                props.category;
+              const label = props.LABEL2 ?? props.LABEL ?? props.category;
               const baseColor = getSpcCategoryColor(label);
-              const stroke = props.stroke || baseColor;
-              const fill = props.fill || baseColor;
-              return {
-                color: stroke,
-                weight: 2,
-                fillColor: fill,
-                fillOpacity: 0.25,
-              };
+              return { color: props.stroke || baseColor, weight: 2, fillColor: props.fill || baseColor, fillOpacity: 0.25 };
             }}
           />
         )}
@@ -518,19 +690,9 @@ export function MapArea({
             data={day3Outlook}
             style={(feature) => {
               const props = (feature?.properties as any) || {};
-              const label =
-                props.LABEL2 ??
-                props.LABEL ??
-                props.category;
+              const label = props.LABEL2 ?? props.LABEL ?? props.category;
               const baseColor = getSpcCategoryColor(label);
-              const stroke = props.stroke || baseColor;
-              const fill = props.fill || baseColor;
-              return {
-                color: stroke,
-                weight: 2,
-                fillColor: fill,
-                fillOpacity: 0.25,
-              };
+              return { color: props.stroke || baseColor, weight: 2, fillColor: props.fill || baseColor, fillOpacity: 0.25 };
             }}
           />
         )}
@@ -545,31 +707,69 @@ export function MapArea({
                 (feature?.properties as any)?.LABEL ??
                 (feature?.properties as any)?.prob;
               const color = getSpcTornadoColor(label);
-              return {
-                color,
-                weight: 2,
-                fillOpacity: 0.3,
-              };
+              return { color, weight: 2, fillOpacity: 0.3 };
             }}
           />
         )}
 
+        {/* SPC Active Watch Boxes — actual polygon boundaries (Tornado=yellow, SVR TSTM=pink) */}
+        {showSpcWatches && spcWatchData && (
+          <GeoJSON
+            key={`spc-watches-${JSON.stringify(spcWatchData)?.length}`}
+            data={spcWatchData}
+            style={(feature) => {
+              const wtchTyp = ((feature?.properties as any)?.WTCH_TYP || "").toUpperCase();
+              const color = wtchTyp === "TORNADO" ? "#FFFF00" : "#DB7093";
+              return { color, weight: 2.5, fillColor: color, fillOpacity: 0.2, dashArray: "8 4" };
+            }}
+            onEachFeature={(feature, layer) => {
+              const props = (feature.properties as any) || {};
+              const label = props.WTCH_TYP === "TORNADO" ? "Tornado Watch" : "Severe Thunderstorm Watch";
+              layer.bindTooltip(label, { sticky: true, className: "leaflet-tooltip-dark" });
+            }}
+          />
+        )}
+
+        {/* SPC Active Mesoscale Discussions — purple dashed outline */}
+        {showMcd && mcdData && (
+          <GeoJSON
+            key={`mcd-${JSON.stringify(mcdData)?.length}`}
+            data={mcdData}
+            style={() => ({
+              color: "#9B30FF",
+              weight: 2,
+              dashArray: "6 4",
+              fillColor: "#9B30FF",
+              fillOpacity: 0.1,
+            })}
+            onEachFeature={(feature, layer) => {
+              const props = (feature.properties as any) || {};
+              const label = `MCD #${props.PRODID || props.mdnum || "?"}`;
+              layer.bindTooltip(label, { sticky: true, className: "leaflet-tooltip-dark" });
+            }}
+          />
+        )}
+
+        {/* Real-time lightning strikes (Blitzortung) */}
+        <LightningLayer enabled={!!showLightning} />
+
         <ZoomControl position="topright" />
         <ScaleControl position="bottomright" imperial={true} metric={false} />
 
-        {/* Inject NWS hatch pattern defs into Leaflet's SVG layer */}
-        <AlertPatternDefs />
-
-        {/* NWS Alert County Polygons — hatched by category (warning=red, watch=yellow, advisory=blue) */}
-        {alertFeatures && alertFeatures.length > 0 && (
+        {/* NWS Alert County/Zone Polygons — colored by official event-type colors */}
+        {showNwsAlerts && alertFeatures && alertFeatures.length > 0 && (
           <GeoJSON
-            key={`alerts-${alertFeatures.map((f: any) => f.properties?.event).join(',')}`}
-            data={{ type: 'FeatureCollection', features: alertFeatures } as any}
+            key={`alerts-${alertFeatures.map((f: any) => f.properties?.eventName).join(",")}`}
+            data={{ type: "FeatureCollection", features: alertFeatures } as any}
             style={(feature: any) => {
-              const cat = feature?.properties?.category;
-              const stroke = getAlertColor(cat);
-              const patId = cat === 'warning' ? 'nws-warn-hatch' : cat === 'watch' ? 'nws-watch-hatch' : 'nws-adv-hatch';
-              return { color: stroke, weight: 2, fillColor: `url(#${patId})`, fillOpacity: 1 };
+              const eventName = feature?.properties?.eventName || "";
+              const category = feature?.properties?.category || "advisory";
+              const { color, fillOpacity } = getNwsAlertStyle(eventName, category);
+              return { color, weight: 2.5, fillColor: color, fillOpacity };
+            }}
+            onEachFeature={(feature, layer) => {
+              const name = feature?.properties?.eventName;
+              if (name) layer.bindTooltip(name, { sticky: true, className: "leaflet-tooltip-dark" });
             }}
           />
         )}
@@ -590,7 +790,7 @@ export function MapArea({
           <div className="bg-card/80 backdrop-blur px-3 py-1 rounded border border-border/50 shadow-lg flex items-center gap-2">
             <span className="text-[10px] font-mono-tech text-muted-foreground uppercase tracking-widest">
               RADAR REFRESH IN <span className="text-primary font-bold">
-                {String(Math.floor(radarCountdown / 60)).padStart(2,'0')}:{String(radarCountdown % 60).padStart(2,'0')}
+                {String(Math.floor(radarCountdown / 60)).padStart(2, '0')}:{String(radarCountdown % 60).padStart(2, '0')}
               </span>
             </span>
           </div>
@@ -599,9 +799,15 @@ export function MapArea({
           <div className="bg-card/80 backdrop-blur px-3 py-1 rounded border border-border/50 shadow-lg flex items-center gap-2">
             <span className="text-[10px] font-mono-tech text-muted-foreground uppercase tracking-widest">
               SAT REFRESH IN <span className="text-primary font-bold">
-                {String(Math.floor(satCountdown / 60)).padStart(2,'0')}:{String(satCountdown % 60).padStart(2,'0')}
+                {String(Math.floor(satCountdown / 60)).padStart(2, '0')}:{String(satCountdown % 60).padStart(2, '0')}
               </span>
             </span>
+          </div>
+        )}
+        {showLightning && (
+          <div className="bg-card/80 backdrop-blur px-3 py-1 rounded border border-border/50 shadow-lg flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse shadow-[0_0_6px_#FFFF00]"></div>
+            <span className="text-[10px] font-mono-tech text-yellow-400 uppercase tracking-widest font-bold">LIGHTNING LIVE</span>
           </div>
         )}
       </div>

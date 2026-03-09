@@ -101,8 +101,9 @@ export async function registerRoutes(
       const watches: any[] = [];
       const advisories: any[] = [];
 
-      // Map: UGC code -> highest-priority category for that zone
-      const ugcCategory = new Map<string, string>();
+      // Map: UGC code -> highest-priority alert info for that zone
+      interface UgcAlertInfo { category: string; eventName: string; }
+      const ugcAlert = new Map<string, UgcAlertInfo>();
 
       features.forEach((feature: any) => {
         const props = feature.properties;
@@ -131,19 +132,22 @@ export async function registerRoutes(
         ugcCodes
           .filter((c: string) => c.startsWith('KY'))
           .forEach((c: string) => {
-            // Warning > Watch > Advisory priority
-            const existing = ugcCategory.get(c);
-            if (!existing || category === 'warning' || (category === 'watch' && existing === 'advisory')) {
-              ugcCategory.set(c, category);
+            // Warning > Watch > Advisory priority; preserve event name for proper coloring
+            const existing = ugcAlert.get(c);
+            const isHigherPriority = !existing ||
+              category === 'warning' ||
+              (category === 'watch' && existing.category === 'advisory');
+            if (isHigherPriority) {
+              ugcAlert.set(c, { category, eventName: props.event || category });
             }
           });
       });
 
       // Fetch zone geometries for affected KY zones in two batch requests
       // (county zones KYCxxx and forecast zones KYZxxx)
-      const allUgcCodes = Array.from(ugcCategory.keys());
-      const countyCodes = allUgcCodes.filter(c => c[2] === 'C');
-      const forecastCodes = allUgcCodes.filter(c => c[2] === 'Z');
+      const allUgcCodes = Array.from(ugcAlert.keys());
+      const countyCodes = allUgcCodes.filter((c: string) => c[2] === 'C');
+      const forecastCodes = allUgcCodes.filter((c: string) => c[2] === 'Z');
 
       const fetchZoneBatch = async (type: string, codes: string[]) => {
         if (!codes.length) return [];
@@ -167,11 +171,11 @@ export async function registerRoutes(
         .filter((f: any) => f.geometry)
         .map((f: any) => {
           const code = f.properties?.id as string;
-          const category = ugcCategory.get(code) || 'advisory';
+          const alertInfo = ugcAlert.get(code) || { category: 'advisory', eventName: '' };
           return {
             type: 'Feature',
             geometry: f.geometry,
-            properties: { event: code, category },
+            properties: { event: code, category: alertInfo.category, eventName: alertInfo.eventName },
           };
         });
 
@@ -179,6 +183,43 @@ export async function registerRoutes(
     } catch (error) {
       console.error('Weather alerts error:', error);
       res.status(500).json({ message: 'Internal server error' });
+    }
+  });
+
+  // Latest NWS Area Forecast Discussion for Louisville/Nashville offices
+  app.get("/api/weather/afd", async (req, res) => {
+    try {
+      const office = (req as any).query.office || 'LMK';
+      const listRes = await fetch(`https://api.weather.gov/products/types/AFD/locations/${office}`);
+      if (!listRes.ok) throw new Error(`AFD list fetch failed: ${listRes.status}`);
+      const list = await listRes.json();
+      const latest = list['@graph']?.[0];
+      if (!latest?.['@id']) return res.json({ text: 'No AFD available.', issuanceTime: null, office });
+
+      const textRes = await fetch(latest['@id']);
+      if (!textRes.ok) throw new Error('AFD product fetch failed');
+      const product = await textRes.json();
+
+      res.json({
+        text: product.productText || 'No text available.',
+        issuanceTime: product.issuanceTime || null,
+        office,
+      });
+    } catch (error) {
+      console.error('AFD fetch error:', error);
+      res.status(500).json({ message: 'Failed to fetch AFD' });
+    }
+  });
+
+  // SPC Active Mesoscale Discussions (proxy to avoid CORS on some deployments)
+  app.get("/api/weather/mcd", async (req, res) => {
+    try {
+      const r = await fetch('https://www.spc.noaa.gov/products/md/ActiveMD.geojson');
+      if (!r.ok) return res.json({ type: 'FeatureCollection', features: [] });
+      const data = await r.json();
+      res.json(data);
+    } catch {
+      res.json({ type: 'FeatureCollection', features: [] });
     }
   });
 

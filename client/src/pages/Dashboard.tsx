@@ -2,7 +2,7 @@ import { useState } from "react";
 import { TimePanel } from "@/components/TimePanel";
 import { AlertsPanel } from "@/components/AlertsPanel";
 import { MapArea } from "@/components/MapArea";
-import { ShieldCheck, ChevronLeft, ChevronRight, AlertTriangle, ShieldAlert, Info, Layers } from "lucide-react";
+import { ShieldCheck, ChevronLeft, ChevronRight, AlertTriangle, ShieldAlert, Info, Layers, Zap, FileText, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -36,6 +36,21 @@ export default function Dashboard() {
   const [showDay3, setShowDay3] = useState(false);
   const [showTornado, setShowTornado] = useState(false);
 
+  // NWS Alert / Analysis Layer Toggles
+  const [showNwsAlerts, setShowNwsAlerts] = useState(true);
+  const [showSpcWatches, setShowSpcWatches] = useState(false);
+  const [showSurfaceAnalysis, setShowSurfaceAnalysis] = useState(false);
+  const [surfaceAnalysisOpacity, setSurfaceAnalysisOpacity] = useState(0.8);
+  const [showUpperAir, setShowUpperAir] = useState(false);
+  const [upperAirOpacity, setUpperAirOpacity] = useState(0.7);
+
+  // Lightning & MCD toggles
+  const [showLightning, setShowLightning] = useState(false);
+  const [showMcd, setShowMcd] = useState(true);
+
+  // AFD office selector
+  const [afdOffice, setAfdOffice] = useState("LMK");
+
   const { data: alertsData } = useQuery<any>({
     queryKey: ["/api/weather/alerts"],
     refetchInterval: 300000,
@@ -49,6 +64,17 @@ export default function Dashboard() {
   const { data: stationsData } = useQuery<any[]>({
     queryKey: ["/api/weather/ky-stations"],
     refetchInterval: 120000,
+  });
+
+  const { data: afdData, isLoading: afdLoading, refetch: refetchAfd } = useQuery<any>({
+    queryKey: ["/api/weather/afd", afdOffice],
+    queryFn: () => fetch(`/api/weather/afd?office=${afdOffice}`).then((r) => r.json()),
+    refetchInterval: 3600000, // 1 hour
+  });
+
+  const { data: mcdData } = useQuery<any>({
+    queryKey: ["/api/weather/mcd"],
+    refetchInterval: 300000,
   });
 
   const warningsCount = alertsData?.warnings?.length || 0;
@@ -114,8 +140,13 @@ export default function Dashboard() {
             </header>
 
             <Tabs defaultValue="layers" className="flex-1 flex flex-col min-h-0">
-              <TabsList className="grid grid-cols-1 bg-muted/20">
-                <TabsTrigger value="layers" className="text-[10px] font-black uppercase tracking-widest">Map Layers</TabsTrigger>
+              <TabsList className="grid grid-cols-2 bg-muted/20">
+                <TabsTrigger value="layers" className="text-[10px] font-black uppercase tracking-widest">
+                  <Layers className="w-3 h-3 mr-1" />Layers
+                </TabsTrigger>
+                <TabsTrigger value="products" className="text-[10px] font-black uppercase tracking-widest">
+                  <FileText className="w-3 h-3 mr-1" />Products
+                </TabsTrigger>
               </TabsList>
 
               <TabsContent
@@ -214,27 +245,193 @@ export default function Dashboard() {
                       </div>
                       <div className="flex items-center space-x-2">
                         <Checkbox id="tornado" checked={showTornado} onCheckedChange={(c) => setShowTornado(!!c)} />
-                        <Label htmlFor="tornado" className="text-[10px] font-bold uppercase cursor-pointer text-destructive">Tornado</Label>
+                        <Label htmlFor="tornado" className="text-[10px] font-bold uppercase cursor-pointer text-destructive">Tornado Prob</Label>
                       </div>
                     </div>
                   </div>
 
-                  {/* Upper Air / Sounding */}
-                  <div className="flex-1 overflow-hidden border border-border/30 rounded-lg bg-card/40 flex flex-col">
-                    <div className="p-3 border-b border-border/30 bg-muted/10 flex items-center justify-between">
-                      <h2 className="text-[10px] font-black uppercase tracking-widest text-primary">Upper Air / Sounding (OHX)</h2>
-                    </div>
-                    <ScrollArea className="flex-1">
-                      <div className="p-4">
-                        <pre className="text-[9px] font-mono-tech leading-relaxed whitespace-pre-wrap text-foreground/90 select-text">
-                          {soundingData?.text || "Loading Latest Sounding Data..."}
-                        </pre>
+                  {/* NWS Watches & Warnings */}
+                  <div className="pt-2 border-t border-border/30">
+                    <h3 className="text-[10px] font-black uppercase tracking-widest text-primary mb-3">NWS Alerts</h3>
+                    <div className="space-y-2">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox id="nwsAlerts" checked={showNwsAlerts} onCheckedChange={(c) => setShowNwsAlerts(!!c)} />
+                        <Label htmlFor="nwsAlerts" className="text-[10px] font-bold uppercase cursor-pointer">Watches / Warnings</Label>
                       </div>
-                    </ScrollArea>
+                      <div className="flex items-center space-x-2">
+                        <Checkbox id="spcWatches" checked={showSpcWatches} onCheckedChange={(c) => setShowSpcWatches(!!c)} />
+                        <Label htmlFor="spcWatches" className="text-[10px] font-bold uppercase cursor-pointer">SPC Watch Boxes</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Checkbox id="showMcd" checked={showMcd} onCheckedChange={(c) => setShowMcd(!!c)} />
+                        <Label htmlFor="showMcd" className="text-[10px] font-bold uppercase cursor-pointer" style={{ color: "#9B30FF" }}>SPC Mesoscale Disc.</Label>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Analysis Layers */}
+                  <div className="pt-2 border-t border-border/30">
+                    <h3 className="text-[10px] font-black uppercase tracking-widest text-primary mb-3">Analysis Layers</h3>
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center space-x-2">
+                            <Checkbox id="surfaceAnalysis" checked={showSurfaceAnalysis} onCheckedChange={(c) => setShowSurfaceAnalysis(!!c)} />
+                            <Label htmlFor="surfaceAnalysis" className="text-[10px] font-bold uppercase cursor-pointer">Surface Analysis</Label>
+                          </div>
+                          <span className="text-[10px] font-mono-tech font-bold text-primary">{Math.round(surfaceAnalysisOpacity * 100)}%</span>
+                        </div>
+                        <Slider
+                          value={[surfaceAnalysisOpacity]}
+                          min={0} max={1} step={0.01}
+                          onValueChange={([v]) => setSurfaceAnalysisOpacity(v)}
+                          disabled={!showSurfaceAnalysis}
+                        />
+                        <p className="text-[8px] text-muted-foreground uppercase tracking-widest">NOAA nowCOAST — Fronts &amp; Pressure Centers</p>
+                      </div>
+                      <div className="space-y-2 pt-2 border-t border-border/30">
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center space-x-2">
+                            <Checkbox id="upperAir" checked={showUpperAir} onCheckedChange={(c) => setShowUpperAir(!!c)} />
+                            <Label htmlFor="upperAir" className="text-[10px] font-bold uppercase cursor-pointer">500mb Heights</Label>
+                          </div>
+                          <span className="text-[10px] font-mono-tech font-bold text-primary">{Math.round(upperAirOpacity * 100)}%</span>
+                        </div>
+                        <Slider
+                          value={[upperAirOpacity]}
+                          min={0} max={1} step={0.01}
+                          onValueChange={([v]) => setUpperAirOpacity(v)}
+                          disabled={!showUpperAir}
+                        />
+                        <p className="text-[8px] text-muted-foreground uppercase tracking-widest">NOAA nowCOAST — Upper Air Analysis</p>
+                      </div>
+
+                      {/* Lightning */}
+                      <div className="space-y-1 pt-2 border-t border-border/30">
+                        <div className="flex items-center space-x-2">
+                          <Checkbox id="lightning" checked={showLightning} onCheckedChange={(c) => setShowLightning(!!c)} />
+                          <Label htmlFor="lightning" className="text-[10px] font-bold uppercase cursor-pointer flex items-center gap-1">
+                            <Zap className="w-3 h-3 text-yellow-400" />
+                            Lightning Strikes
+                          </Label>
+                        </div>
+                        <p className="text-[8px] text-muted-foreground uppercase tracking-widest pl-6">Blitzortung — Real-time, 20-min window</p>
+                      </div>
+                    </div>
                   </div>
 
                   <AlertsPanel />
                 </div>
+              </TabsContent>
+
+              {/* ── Products Tab ── AFD + Active MCDs ── */}
+              <TabsContent value="products" className="flex-1 mt-4 overflow-y-auto pr-2 pb-6 flex flex-col gap-4">
+
+                {/* AFD Panel */}
+                <div className="glass-panel rounded-lg border border-border/30 bg-card/40 flex flex-col overflow-hidden">
+                  <div className="p-3 border-b border-border/30 bg-muted/10 flex items-center justify-between gap-2 flex-wrap">
+                    <h2 className="text-[10px] font-black uppercase tracking-widest text-primary flex items-center gap-2">
+                      <FileText className="w-3 h-3" />
+                      Area Forecast Discussion
+                    </h2>
+                    <div className="flex items-center gap-2">
+                      <Select value={afdOffice} onValueChange={(v) => setAfdOffice(v)}>
+                        <SelectTrigger className="h-6 text-[9px] font-bold uppercase bg-muted/30 w-24">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="z-[800]">
+                          <SelectItem value="LMK">LMK — Louisville</SelectItem>
+                          <SelectItem value="OHX">OHX — Nashville</SelectItem>
+                          <SelectItem value="PAH">PAH — Paducah</SelectItem>
+                          <SelectItem value="JKL">JKL — Jackson KY</SelectItem>
+                          <SelectItem value="ILN">ILN — Wilmington OH</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => refetchAfd()}
+                        title="Refresh AFD"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                      </Button>
+                    </div>
+                  </div>
+                  {afdData?.issuanceTime && (
+                    <div className="px-3 py-1 text-[8px] font-mono-tech text-muted-foreground uppercase tracking-widest border-b border-border/20">
+                      Issued: {new Date(afdData.issuanceTime).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short" })}
+                    </div>
+                  )}
+                  <ScrollArea className="h-72">
+                    <div className="p-3">
+                      {afdLoading ? (
+                        <div className="animate-pulse h-32 bg-muted/20 rounded" />
+                      ) : (
+                        <pre className="text-[8px] font-mono-tech leading-relaxed whitespace-pre-wrap text-foreground/85 select-text">
+                          {afdData?.text || "No AFD data available."}
+                        </pre>
+                      )}
+                    </div>
+                  </ScrollArea>
+                </div>
+
+                {/* Active SPC MCDs */}
+                <div className="glass-panel rounded-lg border border-border/30 bg-card/40 flex flex-col overflow-hidden">
+                  <div className="p-3 border-b border-border/30 bg-muted/10 flex items-center justify-between">
+                    <h2 className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2" style={{ color: "#9B30FF" }}>
+                      <ShieldAlert className="w-3 h-3" />
+                      Active Mesoscale Discussions
+                    </h2>
+                    <span className="text-[9px] font-mono-tech font-bold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400">
+                      {mcdData?.features?.length || 0} Active
+                    </span>
+                  </div>
+                  <ScrollArea className="max-h-48">
+                    <div className="p-3 space-y-2">
+                      {(mcdData?.features?.length ?? 0) === 0 ? (
+                        <p className="text-[9px] text-muted-foreground uppercase tracking-widest">No active MCDs.</p>
+                      ) : (
+                        mcdData.features.map((f: any, i: number) => {
+                          const p = f.properties || {};
+                          const mdNum = p.PRODID || p.mdnum || (i + 1);
+                          const url = `https://www.spc.noaa.gov/products/md/md${String(mdNum).padStart(4, "0")}.html`;
+                          return (
+                            <div key={i} className="bg-background/50 rounded p-2 border border-purple-500/20 text-[9px]">
+                              <div className="font-bold text-purple-400 uppercase tracking-widest">MCD #{mdNum}</div>
+                              {p.AFFECTING && (
+                                <div className="text-muted-foreground mt-0.5 line-clamp-2">{p.AFFECTING}</div>
+                              )}
+                              <a
+                                href={url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-primary underline mt-1 inline-block"
+                              >
+                                View on SPC →
+                              </a>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </ScrollArea>
+                </div>
+
+                {/* Upper Air / Sounding (moved copy for Products context) */}
+                <div className="glass-panel rounded-lg border border-border/30 bg-card/40 flex flex-col overflow-hidden">
+                  <div className="p-3 border-b border-border/30 bg-muted/10">
+                    <h2 className="text-[10px] font-black uppercase tracking-widest text-primary">Upper Air Sounding (OHX)</h2>
+                  </div>
+                  <ScrollArea className="h-56">
+                    <div className="p-3">
+                      <pre className="text-[8px] font-mono-tech leading-relaxed whitespace-pre-wrap text-foreground/85 select-text">
+                        {soundingData?.text || "Loading sounding data..."}
+                      </pre>
+                    </div>
+                  </ScrollArea>
+                </div>
+
               </TabsContent>
             </Tabs>
           </>
@@ -267,6 +464,14 @@ export default function Dashboard() {
           satelliteBand={satelliteBand}
           stations={stationsData}
           alertFeatures={alertsData?.mapFeatures}
+          showNwsAlerts={showNwsAlerts}
+          showSpcWatches={showSpcWatches}
+          showSurfaceAnalysis={showSurfaceAnalysis}
+          surfaceAnalysisOpacity={surfaceAnalysisOpacity}
+          showUpperAir={showUpperAir}
+          upperAirOpacity={upperAirOpacity}
+          showLightning={showLightning}
+          showMcd={showMcd}
         />
 
         {/* YouTube Embed Tool Window */}
