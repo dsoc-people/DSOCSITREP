@@ -205,8 +205,8 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {/* SPC Overlays */}
-                <div className="pt-2">
+                {/* Severe Weather Layers */}
+                <div className="pt-2 border-t border-border/30">
                   <h3 className="text-[10px] font-black uppercase tracking-widest text-primary mb-3">Severe Weather Layers</h3>
                   <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                     <div className="flex items-center space-x-2">
