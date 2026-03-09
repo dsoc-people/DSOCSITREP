@@ -1,14 +1,5 @@
-import { AlertTriangle, Info, ShieldAlert, Cloud, Thermometer, Wind, Droplets } from "lucide-react";
+import { AlertTriangle, ShieldAlert, Cloud, Thermometer, Wind, Droplets } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-
-interface ForecastPeriod {
-  name: string;
-  temperature: number;
-  temperatureUnit: string;
-  detailedForecast: string;
-  shortForecast: string;
-  icon: string;
-}
 
 interface ObservationData {
   temp: string;
@@ -37,12 +28,6 @@ export function AlertsPanel() {
   // Weatherstem Observations via Backend Proxy
   const { data: observations, isLoading: obsLoading } = useQuery<ObservationData>({
     queryKey: ["/api/weather/observation"],
-    refetchInterval: 60000,
-  });
-
-  // NWS Forecast via Backend Proxy
-  const { data: forecast, isLoading: forecastLoading } = useQuery<ForecastPeriod[]>({
-    queryKey: ["/api/weather/forecast"],
     refetchInterval: 60000,
   });
 
@@ -167,32 +152,6 @@ export function AlertsPanel() {
         </div>
       )}
 
-      {/* Forecast */}
-      <div className="glass-panel rounded-lg p-4 border-l-4 border-l-primary/50">
-        <h3 className="text-sm font-bold uppercase tracking-wider text-primary/80 flex items-center gap-2 mb-3">
-          <ShieldAlert className="w-4 h-4" />
-          NWS 7-Day Forecast
-        </h3>
-        {forecastLoading ? (
-          <div className="animate-pulse space-y-2">
-            {[1, 2, 3].map(i => <div key={i} className="h-12 bg-muted/20 rounded"></div>)}
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {forecast?.slice(0, 10).map((period, i) => (
-              <div key={i} className="border-b border-border/30 pb-2 last:border-0">
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-xs font-bold text-primary/90">{period.name}</span>
-                  <span className="text-xs font-mono-tech font-bold">{period.temperature}°{period.temperatureUnit}</span>
-                </div>
-                <div className="text-[10px] text-muted-foreground leading-relaxed">
-                  {period.shortForecast}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
     </div>
   );
 }
