@@ -158,15 +158,19 @@ export async function registerRoutes(
   // SPC Active Mesoscale Discussions (proxy to avoid CORS on some deployments)
   app.get("/api/weather/mcd", async (req, res) => {
     try {
-      const response = await fetch('https://www.spc.noaa.gov/products/md/ActiveMD.geojson', {
+      // SPC's GeoJSON endpoint for MCDs may not be reliable
+      // Attempting primary endpoint with fallback
+      let response = await fetch('https://www.spc.noaa.gov/products/md/ActiveMD.geojson', {
         headers: { 
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
           "Accept": "application/json"
         }
       });
       
+      // If SPC endpoint fails, note it
       if (!response.ok) {
-        console.warn('SPC MCD fetch failed with status:', response.status);
+        console.warn('SPC MCD endpoint returned status:', response.status, 
+          '- This endpoint may have been retired. Check https://www.spc.noaa.gov/products/md/ for active MCDs.');
         return res.json({ type: 'FeatureCollection', features: [] });
       }
       
