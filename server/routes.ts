@@ -298,6 +298,57 @@ export async function registerRoutes(
     }
   });
 
+  // GOES-East GLM (Geostationary Lightning Mapper) via GOES API
+  // Provides real-time satellite-based lightning strikes
+  app.get("/api/weather/lightning", async (req, res) => {
+    try {
+      // GOES API endpoint for GLM data (latest lightning events)
+      // Returns events from the past ~15 minutes
+      const response = await fetch('https://api.goes.noaa.gov/latest/GLM', {
+        headers: {
+          "User-Agent": "KAIR-WKU/1.0 (dsoc@wku.edu)",
+          "Accept": "application/json"
+        }
+      });
+
+      if (!response.ok) {
+        console.warn('GOES API GLM fetch failed with status:', response.status);
+        return res.json({ features: [] });
+      }
+
+      const text = await response.text();
+
+      try {
+        const data = JSON.parse(text);
+        // GOES API returns either GeoJSON or list format - handle both
+        if (Array.isArray(data)) {
+          // Convert to GeoJSON if it's a list
+          const features = data.map((event: any) => ({
+            type: 'Feature',
+            geometry: {
+              type: 'Point',
+              coordinates: [event.lon || event.longitude, event.lat || event.latitude]
+            },
+            properties: {
+              timestamp: event.time || event.timestamp,
+              energy: event.energy || null
+            }
+          }));
+          return res.json({ type: 'FeatureCollection', features });
+        } else if (data.type === 'FeatureCollection') {
+          return res.json(data);
+        }
+      } catch (parseErr) {
+        console.warn('Failed to parse GOES API response');
+      }
+
+      res.json({ features: [] });
+    } catch (error) {
+      console.error('GOES Lightning fetch error:', error);
+      res.json({ features: [] });
+    }
+  });
+
   app.get("/api/weather/ky-stations", async (req, res) => {
     try {
       // Mesonet station list with coordinates (same IDs as your Streamlit app)

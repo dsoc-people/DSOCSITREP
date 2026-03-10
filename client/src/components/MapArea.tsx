@@ -415,7 +415,9 @@ interface LightningStrike {
 }
 
 /**
- * Real-time lightning strikes via Blitzortung WebSocket.
+ * Real-time lightning strikes via GOES API (GLM) and Blitzortung WebSocket.
+ * GOES API provides satellite-based GLM (Geostationary Lightning Mapper) data.
+ * Blitzortung provides ground-based global lightning detection.
  * Color-coded by age: white (<1 min) → yellow → orange → red-orange (>8 min).
  * Max 20-minute window, up to 1000 strikes in memory.
  */
@@ -423,6 +425,7 @@ function LightningLayer({ enabled }: { enabled: boolean }) {
   const [strikes, setStrikes] = useState<LightningStrike[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
   const enabledRef = useRef(enabled);
+  const goesIntervalRef = useRef<NodeJS.Timeout | null>(null);
   enabledRef.current = enabled;
 
   useEffect(() => {
@@ -430,6 +433,7 @@ function LightningLayer({ enabled }: { enabled: boolean }) {
       setStrikes([]);
       wsRef.current?.close();
       wsRef.current = null;
+      if (goesIntervalRef.current) clearInterval(goesIntervalRef.current);
       return;
     }
 
@@ -441,6 +445,33 @@ function LightningLayer({ enabled }: { enabled: boolean }) {
       });
     };
 
+    // Fetch GOES GLM lightning data from our server endpoint
+    const fetchGoesLightning = async () => {
+      try {
+        const response = await fetch('/api/weather/lightning');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.features && Array.isArray(data.features)) {
+            data.features.forEach((feature: any) => {
+              if (feature.geometry && feature.geometry.type === 'Point') {
+                const [lon, lat] = feature.geometry.coordinates;
+                if (typeof lat === 'number' && typeof lon === 'number') {
+                  addStrike(lat, lon);
+                }
+              }
+            });
+          }
+        }
+      } catch (err) {
+        console.debug('GOES lightning fetch:', err);
+      }
+    };
+
+    // Fetch GOES data every 30 seconds
+    goesIntervalRef.current = setInterval(fetchGoesLightning, 30000);
+    fetchGoesLightning(); // Fetch immediately on enable
+
+    // Also maintain Blitzortung connection for real-time ground-based data
     const tryConnect = (attempt: number = 1) => {
       const serverNum = ((attempt - 1) % 7) + 1; // cycle ws1–ws7
       const ws = new WebSocket(`wss://ws${serverNum}.blitzortung.org/`);
@@ -488,6 +519,7 @@ function LightningLayer({ enabled }: { enabled: boolean }) {
 
     return () => {
       clearInterval(prune);
+      if (goesIntervalRef.current) clearInterval(goesIntervalRef.current);
       wsRef.current?.close();
       wsRef.current = null;
     };
