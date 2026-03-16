@@ -313,8 +313,8 @@ function StationPlot({ station }: { station: StationData }) {
     const sDx = Math.cos(rad);
     const sDy = Math.sin(rad);
     const bLen = 10;
-    const bDx = sDy * bLen;
-    const bDy = -sDx * bLen;
+    const bDx = -sDy * bLen;
+    const bDy = sDx * bLen;
 
     let spd = windSpeedVal;
     const pennants = Math.floor(spd / 50); spd -= pennants * 50;
