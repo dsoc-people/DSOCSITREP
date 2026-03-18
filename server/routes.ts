@@ -3,8 +3,6 @@ import type { Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
-import h5wasm from "h5wasm/node";
-
 // ── GOES GLM helpers ─────────────────────────────────────────────────────────
 // J2000 epoch (2000-01-01T12:00:00Z) in Unix milliseconds
 const J2000_UNIX_MS = 946728000_000;
@@ -431,6 +429,8 @@ export async function registerRoutes(
         return res.json({ type: 'FeatureCollection', features: [] });
       }
 
+      // Dynamic import required: h5wasm/node is ESM-only and cannot be statically required in CJS
+      const h5wasm = (await import('h5wasm/node')).default;
       const { FS } = await h5wasm.ready;
       const allFeatures: any[] = [];
 
