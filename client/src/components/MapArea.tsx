@@ -43,6 +43,7 @@ interface MapAreaProps {
   showSpcWatches?: boolean;
   showLightning?: boolean;
   showMcd?: boolean;
+  loopEnabled?: boolean;
 }
 
 function useSpcGeoJson(show: boolean | undefined, url: string) {
@@ -568,6 +569,7 @@ export function MapArea({
   showSpcWatches = false,
   showLightning = false,
   showMcd = false,
+  loopEnabled = false,
 }: MapAreaProps) {
   // Bust tile cache every 2 minutes for radar, 10 minutes for satellite
   const [radarTs, setRadarTs] = useState(() => Math.floor(Date.now() / 120000));
@@ -587,6 +589,47 @@ export function MapArea({
     const timer = setInterval(tick, 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // ── Loop / animation ─────────────────────────────────────────────────────
+  interface RvFrame { time: number; path: string; }
+  const [rvRadarFrames,  setRvRadarFrames]  = useState<RvFrame[]>([]);
+  const [rvSatFrames,    setRvSatFrames]    = useState<RvFrame[]>([]);
+  const [rvHost,         setRvHost]         = useState("https://tilecache.rainviewer.com");
+  const [loopFrameIdx,   setLoopFrameIdx]   = useState(0);
+  const [loopPlaying,    setLoopPlaying]    = useState(true);
+  const loopTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Fetch RainViewer frame list when loop is enabled
+  useEffect(() => {
+    if (!loopEnabled) return;
+    fetch("https://api.rainviewer.com/public/weather-maps.json")
+      .then(r => r.json())
+      .then(d => {
+        setRvHost(d.host ?? "https://tilecache.rainviewer.com");
+        setRvRadarFrames(d.radar?.past ?? []);
+        setRvSatFrames(d.satellite?.infrared ?? []);
+        setLoopFrameIdx(0);
+      })
+      .catch(() => {});
+  }, [loopEnabled]);
+
+  // Advance frame on interval while playing
+  useEffect(() => {
+    if (loopTimerRef.current) clearInterval(loopTimerRef.current);
+    if (!loopEnabled || !loopPlaying) return;
+    const total = Math.max(rvRadarFrames.length, rvSatFrames.length);
+    if (total === 0) return;
+    loopTimerRef.current = setInterval(() => {
+      setLoopFrameIdx(prev => (prev + 1) % total);
+    }, 500);
+    return () => { if (loopTimerRef.current) clearInterval(loopTimerRef.current); };
+  }, [loopEnabled, loopPlaying, rvRadarFrames.length, rvSatFrames.length]);
+
+  const loopTotal = Math.max(rvRadarFrames.length, rvSatFrames.length);
+  const radarFrame  = rvRadarFrames[Math.min(loopFrameIdx, rvRadarFrames.length - 1)];
+  const satFrame    = rvSatFrames[Math.min(loopFrameIdx, rvSatFrames.length - 1)];
+  const frameTime   = radarFrame?.time ?? satFrame?.time ?? null;
+  // ─────────────────────────────────────────────────────────────────────────
 
   const day1Outlook = useSpcGeoJson(!!showDay1, "https://www.spc.noaa.gov/products/outlook/day1otlk_cat.nolyr.geojson");
   const day2Outlook = useSpcGeoJson(!!showDay2, "https://www.spc.noaa.gov/products/outlook/day2otlk_cat.nolyr.geojson");
@@ -617,26 +660,46 @@ export function MapArea({
           maxZoom={19}
         />
 
-        {/* GOES-East CONUS Satellite Layer */}
-        {showSatellite && (
-          <TileLayer
-            key={`sat-${satTs}`}
-            attribution='Satellite &copy; <a href="https://mesonet.agron.iastate.edu">IEM</a>'
-            url={`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/goes_east_conus_${satelliteBand || 'ch14'}/{z}/{x}/{y}.png`}
-            opacity={satelliteOpacity}
-            maxZoom={19}
-          />
+        {/* Live Weather Radar — rendered first (below satellite) */}
+        {showRadar && (
+          loopEnabled && radarFrame ? (
+            <TileLayer
+              key={`radar-loop-${loopFrameIdx}`}
+              attribution='Radar &copy; <a href="https://rainviewer.com">RainViewer</a>'
+              url={`${rvHost}${radarFrame.path}/256/{z}/{x}/{y}/4/1_1.png`}
+              opacity={radarOpacity}
+              maxZoom={19}
+            />
+          ) : (
+            <TileLayer
+              key={`radar-${radarTs}`}
+              attribution='Weather data &copy; <a href="https://mesonet.agron.iastate.edu">IEM</a>'
+              url="https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png"
+              opacity={radarOpacity}
+              maxZoom={19}
+            />
+          )
         )}
 
-        {/* Live Weather Radar Overlay */}
-        {showRadar && (
-          <TileLayer
-            key={`radar-${radarTs}`}
-            attribution='Weather data &copy; <a href="https://mesonet.agron.iastate.edu">IEM</a>'
-            url="https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png"
-            opacity={radarOpacity}
-            maxZoom={19}
-          />
+        {/* GOES-East CONUS Satellite — rendered after radar (on top) */}
+        {showSatellite && (
+          loopEnabled && satFrame ? (
+            <TileLayer
+              key={`sat-loop-${loopFrameIdx}`}
+              attribution='Satellite &copy; <a href="https://rainviewer.com">RainViewer</a>'
+              url={`${rvHost}${satFrame.path}/256/{z}/{x}/{y}/0/0_0.png`}
+              opacity={satelliteOpacity}
+              maxZoom={19}
+            />
+          ) : (
+            <TileLayer
+              key={`sat-${satTs}`}
+              attribution='Satellite &copy; <a href="https://mesonet.agron.iastate.edu">IEM</a>'
+              url={`https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/goes_east_conus_${satelliteBand || 'ch14'}/{z}/{x}/{y}.png`}
+              opacity={satelliteOpacity}
+              maxZoom={19}
+            />
+          )
         )}
 
         {/* Kentucky county boundaries */}
@@ -854,7 +917,7 @@ export function MapArea({
           <div className="w-2 h-2 rounded-full bg-primary animate-pulse shadow-[0_0_8px_hsl(var(--primary))]"></div>
           <span className="text-xs font-mono-tech font-bold tracking-widest text-primary">LIVE RADAR LINK ACTIVE</span>
         </div>
-        {showRadar && (
+        {!loopEnabled && showRadar && (
           <div className="bg-card/80 backdrop-blur px-3 py-1 rounded border border-border/50 shadow-lg flex items-center gap-2">
             <span className="text-[10px] font-mono-tech text-muted-foreground uppercase tracking-widest">
               RADAR REFRESH IN <span className="text-primary font-bold">
@@ -863,7 +926,7 @@ export function MapArea({
             </span>
           </div>
         )}
-        {showSatellite && (
+        {!loopEnabled && showSatellite && (
           <div className="bg-card/80 backdrop-blur px-3 py-1 rounded border border-border/50 shadow-lg flex items-center gap-2">
             <span className="text-[10px] font-mono-tech text-muted-foreground uppercase tracking-widest">
               SAT REFRESH IN <span className="text-primary font-bold">
@@ -879,6 +942,51 @@ export function MapArea({
           </div>
         )}
       </div>
+
+      {/* Loop playback controls */}
+      {loopEnabled && (showRadar || showSatellite) && (
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-[400] flex items-center gap-2 bg-card/90 backdrop-blur border border-border/50 rounded-full px-4 py-1.5 shadow-xl select-none">
+          {/* Prev frame */}
+          <button
+            className="text-muted-foreground hover:text-foreground transition-colors"
+            onClick={() => setLoopFrameIdx(prev => (prev - 1 + loopTotal) % loopTotal)}
+          >
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M8.445 14.832A1 1 0 0010 14v-2.798l5.445 3.63A1 1 0 0017 14V6a1 1 0 00-1.555-.832L10 8.798V6a1 1 0 00-1.555-.832l-6 4a1 1 0 000 1.664l6 4z"/></svg>
+          </button>
+
+          {/* Play / Pause */}
+          <button
+            className="text-primary hover:text-primary/80 transition-colors"
+            onClick={() => setLoopPlaying(p => !p)}
+          >
+            {loopPlaying ? (
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd"/></svg>
+            ) : (
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd"/></svg>
+            )}
+          </button>
+
+          {/* Next frame */}
+          <button
+            className="text-muted-foreground hover:text-foreground transition-colors"
+            onClick={() => setLoopFrameIdx(prev => (prev + 1) % loopTotal)}
+          >
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M4.555 5.168A1 1 0 003 6v8a1 1 0 001.555.832L10 11.202V14a1 1 0 001.555.832l6-4a1 1 0 000-1.664l-6-4A1 1 0 0010 6v2.798L4.555 5.168z"/></svg>
+          </button>
+
+          {/* Timestamp */}
+          <span className="text-[10px] font-mono-tech font-bold text-primary uppercase tracking-widest w-28 text-center">
+            {frameTime
+              ? new Date(frameTime * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) + ' UTC'
+              : 'Loading...'}
+          </span>
+
+          {/* Frame counter */}
+          <span className="text-[9px] font-mono-tech text-muted-foreground">
+            {loopTotal > 0 ? `${loopFrameIdx + 1}/${loopTotal}` : '--'}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

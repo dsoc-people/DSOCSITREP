@@ -45,6 +45,7 @@ export default function Dashboard() {
   const [showNwsAlerts, setShowNwsAlerts] = useState(true);
   const [showSpcWatches, setShowSpcWatches] = useState(true);
   const [showLightning, setShowLightning] = useState(true);
+  const [loopEnabled, setLoopEnabled] = useState(false);
   const [showMcd, setShowMcd] = useState(true);
 
   // AFD office selector
@@ -200,15 +201,32 @@ export default function Dashboard() {
                           </SelectContent>
                         </Select>
 
-                        <Slider 
-                          value={[satelliteOpacity]} 
-                          min={0} 
-                          max={1} 
-                          step={0.01} 
+                        <Slider
+                          value={[satelliteOpacity]}
+                          min={0}
+                          max={1}
+                          step={0.01}
                           onValueChange={([val]) => setSatelliteOpacity(val)}
                           disabled={!showSatellite}
                         />
                       </div>
+                    </div>
+
+                    {/* Loop toggle */}
+                    <div className="pt-2 border-t border-border/30">
+                      <button
+                        onClick={() => setLoopEnabled(l => !l)}
+                        className={`w-full flex items-center justify-center gap-2 rounded px-3 py-1.5 text-[10px] font-black uppercase tracking-widest border transition-colors ${
+                          loopEnabled
+                            ? 'bg-primary/20 border-primary text-primary'
+                            : 'bg-muted/20 border-border/50 text-muted-foreground hover:text-foreground hover:border-border'
+                        }`}
+                      >
+                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd"/>
+                        </svg>
+                        {loopEnabled ? 'Loop On' : 'Loop Off'}
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -331,6 +349,7 @@ export default function Dashboard() {
           showSpcWatches={showSpcWatches}
           showLightning={showLightning}
           showMcd={showMcd}
+          loopEnabled={loopEnabled}
         />
 
         {/* YouTube Embed Tool Window */}
