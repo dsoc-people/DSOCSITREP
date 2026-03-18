@@ -182,38 +182,112 @@ export async function registerRoutes(
     }
   });
 
-  // SPC Active Mesoscale Discussions (proxy to avoid CORS on some deployments)
+  // SPC Active Mesoscale Discussions — scraped from spc.noaa.gov (SAGUI method)
+  // ActiveMD.geojson is unreliable; instead we scrape the MD listing page and
+  // parse each MD's raw LAT...LON 8-char coordinate format directly.
   app.get("/api/weather/mcd", async (req, res) => {
     try {
-      // SPC's GeoJSON endpoint for MCDs may not be reliable
-      // Attempting primary endpoint with fallback
-      let response = await fetch('https://www.spc.noaa.gov/products/md/ActiveMD.geojson', {
-        headers: { 
-          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-          "Accept": "application/json"
-        }
-      });
-      
-      // If SPC endpoint fails, note it
-      if (!response.ok) {
-        console.warn('SPC MCD endpoint returned status:', response.status, 
-          '- This endpoint may have been retired. Check https://www.spc.noaa.gov/products/md/ for active MCDs.');
+      const headers = { "User-Agent": "DSOC-Dashboard/1.0 (dsoc@wku.edu)" };
+
+      // 1. Fetch the active MD listing page
+      const listResp = await fetch('https://www.spc.noaa.gov/products/md/', { headers });
+      if (!listResp.ok) return res.json({ type: 'FeatureCollection', features: [] });
+      const listHtml = await listResp.text();
+
+      // Check if any MDs are active
+      if (listHtml.includes('No Mesoscale Discussions are currently in effect')) {
         return res.json({ type: 'FeatureCollection', features: [] });
       }
-      
-      const text = await response.text();
-      
-      // Try to parse as JSON
-      try {
-        const data = JSON.parse(text);
-        if (data && data.type === 'FeatureCollection') {
-          return res.json(data);
+
+      // Extract MD page links e.g. /products/md/md2026-0042.html
+      const mdLinks = [...listHtml.matchAll(/href="(\/products\/md\/md[\d-]+\.html)"/g)]
+        .map(m => m[1]);
+
+      if (mdLinks.length === 0) return res.json({ type: 'FeatureCollection', features: [] });
+
+      // 2. Fetch each MD page and parse coordinates + metadata
+      const features: any[] = [];
+
+      for (const link of mdLinks) {
+        try {
+          const mdResp = await fetch(`https://www.spc.noaa.gov${link}`, { headers });
+          if (!mdResp.ok) continue;
+          const mdHtml = await mdResp.text();
+
+          // Extract MD number from URL
+          const numMatch = link.match(/md[\d]+-(\d+)\.html/);
+          const mdNumber = numMatch ? parseInt(numMatch[1], 10) : 0;
+
+          // Strip HTML tags to get plain text
+          const text = mdHtml.replace(/<[^>]+>/g, ' ').replace(/&[a-z]+;/gi, ' ');
+          const lines = text.split('\n').map(l => l.trim());
+
+          // Parse "Concerning..." and "Probability of Watch Issuance..."
+          let concern = '';
+          let probWatch = '';
+          for (const line of lines) {
+            if (line.includes('Concerning...')) {
+              concern = line.split('Concerning...')[1]
+                .replace('Severe potential...', '').trim();
+            }
+            if (line.includes('Probability of Watch Issuance...')) {
+              probWatch = line.split('Probability of Watch Issuance...')[1].trim();
+            }
+          }
+          const label = probWatch ? `${concern} (${probWatch})` : concern;
+
+          // Parse LAT...LON section — tokens are 8-char combined LLLLOOOO
+          const latLonIdx = lines.findIndex(l => l.startsWith('LAT...LON'));
+          if (latLonIdx === -1) continue;
+
+          const tokens: string[] = [];
+          for (let i = latLonIdx; i < lines.length; i++) {
+            if (i > latLonIdx && lines[i] === '') break;
+            const cleaned = lines[i].replace('LAT...LON', '').trim();
+            tokens.push(...cleaned.split(/\s+/).filter(t => t.length === 8));
+          }
+
+          if (tokens.length < 3) continue;
+
+          // Decode each 8-char token → [lon, lat]
+          const coords: [number, number][] = [];
+          for (const t of tokens) {
+            const lat = parseFloat(t.slice(0, 2) + '.' + t.slice(2, 4));
+            let lon: number;
+            const d = t[4];
+            if (d === '0' || d === '1' || d === '2') {
+              lon = parseFloat('-1' + t.slice(4, 6) + '.' + t.slice(6, 8));
+            } else {
+              lon = parseFloat('-' + t.slice(4, 6) + '.' + t.slice(6, 8));
+            }
+            if (!isNaN(lat) && !isNaN(lon)) coords.push([lon, lat]);
+          }
+
+          if (coords.length < 3) continue;
+
+          // Close the polygon
+          if (coords[0][0] !== coords[coords.length - 1][0] ||
+              coords[0][1] !== coords[coords.length - 1][1]) {
+            coords.push(coords[0]);
+          }
+
+          features.push({
+            type: 'Feature',
+            geometry: { type: 'Polygon', coordinates: [coords] },
+            properties: {
+              md_number: mdNumber,
+              PRODID: mdNumber,
+              mdnum: mdNumber,
+              md_location: label,
+              md_discussion: label,
+            }
+          });
+        } catch (err) {
+          console.warn('Failed to parse MD:', link, err);
         }
-      } catch (parseErr) {
-        console.warn('Failed to parse SPC response as JSON');
       }
-      
-      res.json({ type: 'FeatureCollection', features: [] });
+
+      res.json({ type: 'FeatureCollection', features });
     } catch (error) {
       console.error('MCD fetch error:', error);
       res.json({ type: 'FeatureCollection', features: [] });
