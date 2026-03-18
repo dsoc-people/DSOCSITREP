@@ -3,6 +3,33 @@ import type { Server } from "http";
 import { storage } from "./storage";
 import { api } from "@shared/routes";
 import { z } from "zod";
+import h5wasm from "h5wasm/node";
+
+// ── GOES GLM helpers ─────────────────────────────────────────────────────────
+// J2000 epoch (2000-01-01T12:00:00Z) in Unix milliseconds
+const J2000_UNIX_MS = 946728000_000;
+
+interface GlmCache { features: any[]; timestamp: number; }
+let glmCache: GlmCache | null = null;
+const GLM_CACHE_TTL_MS = 25_000;
+
+function getDayOfYear(d: Date): number {
+  const start = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((d.getTime() - start.getTime()) / 86_400_000);
+}
+
+function extractS3Keys(xml: string): string[] {
+  return [...xml.matchAll(/<Key>([^<]+\.nc)<\/Key>/g)].map(m => m[1]);
+}
+
+async function listGlmFiles(year: number, doy: number, hour: number): Promise<string[]> {
+  const prefix = `GLM-L2-LCFA/${year}/${String(doy).padStart(3,'0')}/${String(hour).padStart(2,'0')}/`;
+  const url = `https://noaa-goes16.s3.amazonaws.com/?prefix=${prefix}&list-type=2&max-keys=300`;
+  const resp = await fetch(url, { signal: AbortSignal.timeout(8_000) });
+  if (!resp.ok) return [];
+  return extractS3Keys(await resp.text());
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 async function seedDatabase() {
   const existing = await storage.getLocations();
@@ -302,54 +329,84 @@ export async function registerRoutes(
     }
   });
 
-  // GOES-East GLM (Geostationary Lightning Mapper) via GOES API
-  // Provides real-time satellite-based lightning strikes
+  // GOES-16 GLM (Geostationary Lightning Mapper) via NOAA Open Data on AWS
+  // Free — NOAA pays egress. Files update every ~20s. No AWS account required.
   app.get("/api/weather/lightning", async (req, res) => {
     try {
-      // GOES API endpoint for GLM data (latest lightning events)
-      // Returns events from the past ~15 minutes
-      const response = await fetch('https://api.goes.noaa.gov/latest/GLM', {
-        headers: {
-          "User-Agent": "KAIR-WKU/1.0 (dsoc@wku.edu)",
-          "Accept": "application/json"
-        }
-      });
-
-      if (!response.ok) {
-        console.warn('GOES API GLM fetch failed with status:', response.status);
-        return res.json({ features: [] });
+      // Serve from cache if still fresh
+      if (glmCache && Date.now() - glmCache.timestamp < GLM_CACHE_TTL_MS) {
+        return res.json({ type: 'FeatureCollection', features: glmCache.features });
       }
 
-      const text = await response.text();
+      const now = new Date();
+      const year = now.getUTCFullYear();
+      const doy  = getDayOfYear(now);
+      const hour = now.getUTCHours();
 
-      try {
-        const data = JSON.parse(text);
-        // GOES API returns either GeoJSON or list format - handle both
-        if (Array.isArray(data)) {
-          // Convert to GeoJSON if it's a list
-          const features = data.map((event: any) => ({
-            type: 'Feature',
-            geometry: {
-              type: 'Point',
-              coordinates: [event.lon || event.longitude, event.lat || event.latitude]
-            },
-            properties: {
-              timestamp: event.time || event.timestamp,
-              energy: event.energy || null
+      // List current hour; fall back to previous hour if empty (first minute of hour)
+      let keys = await listGlmFiles(year, doy, hour);
+      if (keys.length === 0) {
+        const prevHour = hour === 0 ? 23 : hour - 1;
+        const prevDoy  = hour === 0 ? doy - 1 : doy;
+        keys = await listGlmFiles(year, prevDoy, prevHour);
+      }
+
+      // Latest 6 files ≈ 2 minutes of flash data
+      const latest = keys.slice(-6);
+      if (latest.length === 0) {
+        return res.json({ type: 'FeatureCollection', features: [] });
+      }
+
+      const { FS } = await h5wasm.ready;
+      const allFeatures: any[] = [];
+
+      for (const key of latest) {
+        let buffer: ArrayBuffer;
+        try {
+          const r = await fetch(`https://noaa-goes16.s3.amazonaws.com/${key}`, {
+            signal: AbortSignal.timeout(10_000)
+          });
+          if (!r.ok) continue;
+          buffer = await r.arrayBuffer();
+        } catch { continue; }
+
+        const tmpName = `glm_${Date.now()}_${Math.random().toString(36).slice(2)}.nc`;
+        FS.writeFile(tmpName, new Uint8Array(buffer));
+
+        try {
+          const f = new h5wasm.File(tmpName, 'r');
+          const flashLat  = f.get('flash_lat')?.value  as Float32Array | undefined;
+          const flashLon  = f.get('flash_lon')?.value  as Float32Array | undefined;
+          const flashTime = f.get('flash_time_offset_of_first_event')?.value as Float32Array | undefined;
+          const ptVal     = f.get('product_time')?.value;
+          f.close();
+
+          if (flashLat && flashLon && flashLat.length > 0) {
+            // product_time = seconds since J2000 epoch (2000-01-01T12:00:00Z)
+            const baseMs = ptVal ? (Number(ptVal[0]) * 1000 + J2000_UNIX_MS) : Date.now();
+            for (let i = 0; i < flashLat.length; i++) {
+              allFeatures.push({
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: [flashLon[i], flashLat[i]] },
+                properties: {
+                  timestamp: new Date(baseMs + (flashTime ? flashTime[i] * 1000 : 0)).toISOString()
+                }
+              });
             }
-          }));
-          return res.json({ type: 'FeatureCollection', features });
-        } else if (data.type === 'FeatureCollection') {
-          return res.json(data);
+          }
+        } catch (err) {
+          console.warn('GLM parse error:', key, err);
+        } finally {
+          try { FS.unlink(tmpName); } catch {}
         }
-      } catch (parseErr) {
-        console.warn('Failed to parse GOES API response');
       }
 
-      res.json({ features: [] });
+      glmCache = { features: allFeatures, timestamp: Date.now() };
+      res.json({ type: 'FeatureCollection', features: allFeatures });
+
     } catch (error) {
-      console.error('GOES Lightning fetch error:', error);
-      res.json({ features: [] });
+      console.error('GOES GLM fetch error:', error);
+      res.json({ type: 'FeatureCollection', features: glmCache?.features ?? [] });
     }
   });
 

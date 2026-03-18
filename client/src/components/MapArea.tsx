@@ -41,10 +41,6 @@ interface MapAreaProps {
   alertFeatures?: any[];
   showNwsAlerts?: boolean;
   showSpcWatches?: boolean;
-  showSurfaceAnalysis?: boolean;
-  surfaceAnalysisOpacity?: number;
-  showUpperAir?: boolean;
-  upperAirOpacity?: number;
   showLightning?: boolean;
   showMcd?: boolean;
 }
@@ -570,10 +566,6 @@ export function MapArea({
   stations = [],
   showNwsAlerts = true,
   showSpcWatches = false,
-  showSurfaceAnalysis = false,
-  surfaceAnalysisOpacity = 0.8,
-  showUpperAir = false,
-  upperAirOpacity = 0.7,
   showLightning = false,
   showMcd = false,
 }: MapAreaProps) {
@@ -644,32 +636,6 @@ export function MapArea({
             url="https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913/{z}/{x}/{y}.png"
             opacity={radarOpacity}
             maxZoom={19}
-          />
-        )}
-
-        {/* NOAA nowcoast Surface Analysis (fronts, highs, lows) */}
-        {showSurfaceAnalysis && (
-          <WMSTileLayer
-            url="https://nowcoast.noaa.gov/arcgis/services/meteorology/surface_analysis_fronts/MapServer/WmsServer"
-            layers="0"
-            format="image/png"
-            transparent={true}
-            version="1.3.0"
-            opacity={surfaceAnalysisOpacity}
-            attribution='Surface Analysis &copy; <a href="https://nowcoast.noaa.gov">NOAA nowCOAST</a>'
-          />
-        )}
-
-        {/* NOAA nowcoast Upper Air Analysis (500mb heights, vorticity) */}
-        {showUpperAir && (
-          <WMSTileLayer
-            url="https://nowcoast.noaa.gov/arcgis/services/meteorology/upper_air_analysis/MapServer/WmsServer"
-            layers="0"
-            format="image/png"
-            transparent={true}
-            version="1.3.0"
-            opacity={upperAirOpacity}
-            attribution='Upper Air Analysis &copy; <a href="https://nowcoast.noaa.gov">NOAA nowCOAST</a>'
           />
         )}
 

@@ -44,10 +44,6 @@ export default function Dashboard() {
   const [showTornado, setShowTornado] = useState(false);
   const [showNwsAlerts, setShowNwsAlerts] = useState(true);
   const [showSpcWatches, setShowSpcWatches] = useState(true);
-  const [showSurfaceAnalysis, setShowSurfaceAnalysis] = useState(false);
-  const [surfaceAnalysisOpacity, setSurfaceAnalysisOpacity] = useState(0.7);
-  const [showUpperAir, setShowUpperAir] = useState(false);
-  const [upperAirOpacity, setUpperAirOpacity] = useState(0.6);
   const [showLightning, setShowLightning] = useState(true);
   const [showMcd, setShowMcd] = useState(true);
 
@@ -256,39 +252,8 @@ export default function Dashboard() {
                 <div className="pt-2 border-t border-border/30">
                   <h3 className="text-[10px] font-black uppercase tracking-widest text-primary mb-3">Analysis Layers</h3>
                   <div className="space-y-4">
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center space-x-2">
-                          <Checkbox id="surfaceAnalysis" checked={showSurfaceAnalysis} onCheckedChange={(c) => setShowSurfaceAnalysis(!!c)} />
-                          <Label htmlFor="surfaceAnalysis" className="text-[10px] font-bold uppercase cursor-pointer">Surface Analysis</Label>
-                        </div>
-                        <span className="text-[10px] font-mono-tech font-bold text-primary">{Math.round(surfaceAnalysisOpacity * 100)}%</span>
-                      </div>
-                      <Slider
-                        value={[surfaceAnalysisOpacity]}
-                        min={0} max={1} step={0.01}
-                        onValueChange={([v]) => setSurfaceAnalysisOpacity(v)}
-                        disabled={!showSurfaceAnalysis}
-                      />
-                    </div>
-                    <div className="space-y-2 pt-2 border-t border-border/30">
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center space-x-2">
-                          <Checkbox id="upperAir" checked={showUpperAir} onCheckedChange={(c) => setShowUpperAir(!!c)} />
-                          <Label htmlFor="upperAir" className="text-[10px] font-bold uppercase cursor-pointer">500mb Heights</Label>
-                        </div>
-                        <span className="text-[10px] font-mono-tech font-bold text-primary">{Math.round(upperAirOpacity * 100)}%</span>
-                      </div>
-                      <Slider
-                        value={[upperAirOpacity]}
-                        min={0} max={1} step={0.01}
-                        onValueChange={([v]) => setUpperAirOpacity(v)}
-                        disabled={!showUpperAir}
-                      />
-                    </div>
-
                     {/* Lightning */}
-                    <div className="space-y-1 pt-2 border-t border-border/30">
+                    <div className="space-y-1">
                       <div className="flex items-center space-x-2">
                         <Checkbox id="lightning" checked={showLightning} onCheckedChange={(c) => setShowLightning(!!c)} />
                         <Label htmlFor="lightning" className="text-[10px] font-bold uppercase cursor-pointer flex items-center gap-1">
@@ -364,10 +329,6 @@ export default function Dashboard() {
           alertFeatures={alertsData?.mapFeatures}
           showNwsAlerts={showNwsAlerts}
           showSpcWatches={showSpcWatches}
-          showSurfaceAnalysis={showSurfaceAnalysis}
-          surfaceAnalysisOpacity={surfaceAnalysisOpacity}
-          showUpperAir={showUpperAir}
-          upperAirOpacity={upperAirOpacity}
           showLightning={showLightning}
           showMcd={showMcd}
         />
