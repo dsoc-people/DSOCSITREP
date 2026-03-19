@@ -414,113 +414,76 @@ interface LightningStrike {
 }
 
 /**
- * Real-time lightning strikes via GOES API (GLM) and Blitzortung WebSocket.
- * GOES API provides satellite-based GLM (Geostationary Lightning Mapper) data.
- * Blitzortung provides ground-based global lightning detection.
+ * Real-time lightning strikes via GOES-16 GLM (Geostationary Lightning Mapper).
+ * Data is fetched from the server-side endpoint which reads NOAA's Open Data S3 bucket.
+ * GLM files update every ~20s and cover the last ~2 minutes of flash data.
  * Color-coded by age: white (<1 min) → yellow → orange → red-orange (>8 min).
- * Max 20-minute window, up to 1000 strikes in memory.
  */
 function LightningLayer({ enabled }: { enabled: boolean }) {
   const [strikes, setStrikes] = useState<LightningStrike[]>([]);
-  const wsRef = useRef<WebSocket | null>(null);
-  const enabledRef = useRef(enabled);
-  const goesIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  enabledRef.current = enabled;
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     if (!enabled) {
       setStrikes([]);
-      wsRef.current?.close();
-      wsRef.current = null;
-      if (goesIntervalRef.current) clearInterval(goesIntervalRef.current);
+      if (intervalRef.current) clearInterval(intervalRef.current);
       return;
     }
 
-    const addStrike = (lat: number, lon: number) => {
-      const now = Date.now();
-      setStrikes((prev) => {
-        const fresh = prev.filter((s) => now - s.time < 20 * 60 * 1000).slice(-999);
-        return [...fresh, { lat, lon, time: now }];
-      });
-    };
-
-    // Fetch GOES GLM lightning data from our server endpoint
-    const fetchGoesLightning = async () => {
+    const fetchGlm = async () => {
       try {
         const response = await fetch('/api/weather/lightning');
-        if (response.ok) {
-          const data = await response.json();
-          if (data.features && Array.isArray(data.features)) {
-            data.features.forEach((feature: any) => {
-              if (feature.geometry && feature.geometry.type === 'Point') {
-                const [lon, lat] = feature.geometry.coordinates;
-                if (typeof lat === 'number' && typeof lon === 'number') {
-                  addStrike(lat, lon);
-                }
-              }
-            });
-          }
+        if (!response.ok) return;
+        const data = await response.json();
+        if (!Array.isArray(data.features)) return;
+
+        const incoming: LightningStrike[] = [];
+        for (const feature of data.features) {
+          if (feature.geometry?.type !== 'Point') continue;
+          const [lon, lat] = feature.geometry.coordinates;
+          if (typeof lat !== 'number' || typeof lon !== 'number') continue;
+          // Use the actual flash timestamp from GLM data so age coloring is accurate
+          const ts = feature.properties?.timestamp
+            ? new Date(feature.properties.timestamp).getTime()
+            : Date.now();
+          incoming.push({ lat, lon, time: ts });
+        }
+
+        if (incoming.length > 0) {
+          const cutoff = Date.now() - 20 * 60 * 1000;
+          setStrikes((prev) => {
+            const merged = [...prev, ...incoming];
+            // Deduplicate by rounded lat/lon + time bucket, keep freshest 2000
+            const seen = new Set<string>();
+            return merged
+              .filter((s) => s.time > cutoff)
+              .filter((s) => {
+                const key = `${s.lat.toFixed(3)},${s.lon.toFixed(3)},${Math.floor(s.time / 10000)}`;
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+              })
+              .slice(-2000);
+          });
         }
       } catch (err) {
-        console.debug('GOES lightning fetch:', err);
+        console.debug('GLM fetch error:', err);
       }
     };
 
-    // Fetch GOES data every 30 seconds
-    goesIntervalRef.current = setInterval(fetchGoesLightning, 30000);
-    fetchGoesLightning(); // Fetch immediately on enable
+    // Poll every 25 s (GLM files update every ~20 s)
+    fetchGlm();
+    intervalRef.current = setInterval(fetchGlm, 25000);
 
-    // Also maintain Blitzortung connection for real-time ground-based data
-    const tryConnect = (attempt: number = 1) => {
-      const serverNum = ((attempt - 1) % 7) + 1; // cycle ws1–ws7
-      const ws = new WebSocket(`wss://ws${serverNum}.blitzortung.org/`);
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        // Subscribe to continental US bounding box
-        ws.send(JSON.stringify({ west: -130, east: -60, north: 55, south: 20 }));
-      };
-
-      ws.onmessage = (e) => {
-        try {
-          const data = JSON.parse(e.data as string);
-          // Standard Blitzortung format: top-level lat/lon fields
-          if (typeof data.lat === "number" && typeof data.lon === "number") {
-            addStrike(data.lat, data.lon);
-          }
-          // Array-of-strikes format used by some server versions
-          if (Array.isArray(data.s)) {
-            (data.s as number[][]).forEach((s) => {
-              if (s.length >= 3) addStrike(s[1], s[2]);
-            });
-          }
-        } catch (_) {/* ignore malformed frames */}
-      };
-
-      ws.onerror = () => { ws.close(); };
-
-      ws.onclose = () => {
-        if (enabledRef.current && wsRef.current === ws) {
-          // Exponential back-off capped at 15 s, then try next server
-          const delay = Math.min(2000 * attempt, 15000);
-          setTimeout(() => { if (enabledRef.current) tryConnect(attempt + 1); }, delay);
-        }
-      };
-    };
-
-    tryConnect();
-
-    // Prune old strikes every 30 s
+    // Prune old strikes every 60 s
     const prune = setInterval(() => {
       const cutoff = Date.now() - 20 * 60 * 1000;
       setStrikes((prev) => prev.filter((s) => s.time > cutoff));
-    }, 30000);
+    }, 60000);
 
     return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
       clearInterval(prune);
-      if (goesIntervalRef.current) clearInterval(goesIntervalRef.current);
-      wsRef.current?.close();
-      wsRef.current = null;
     };
   }, [enabled]);
 
