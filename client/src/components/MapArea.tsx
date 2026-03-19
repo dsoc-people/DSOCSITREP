@@ -43,6 +43,8 @@ interface MapAreaProps {
   showSpcWatches?: boolean;
   showLightning?: boolean;
   showMcd?: boolean;
+  showEntln?: boolean;
+  showAhMcd?: boolean;
   loopEnabled?: boolean;
 }
 
@@ -552,6 +554,59 @@ function LightningLayer({ enabled }: { enabled: boolean }) {
   );
 }
 
+/**
+ * Allisonhouse ENTLN lightning strikes — polled every 60 s from the server proxy.
+ * Rendered as yellow/white CircleMarkers similar to the GLM/Blitzortung layer.
+ */
+function EntlnLayer({ enabled }: { enabled: boolean }) {
+  const [strikes, setStrikes] = useState<LightningStrike[]>([]);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (!enabled) { setStrikes([]); if (intervalRef.current) clearInterval(intervalRef.current); return; }
+
+    const fetchStrikes = async () => {
+      try {
+        const res = await fetch('/api/weather/entln');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!data.features) return;
+        const now = Date.now();
+        setStrikes(prev => {
+          const fresh = prev.filter(s => now - s.time < 20 * 60 * 1000).slice(-999);
+          const newStrikes: LightningStrike[] = data.features
+            .filter((f: any) => f.geometry?.type === 'Point')
+            .map((f: any) => ({ lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0], time: now }));
+          return [...fresh, ...newStrikes];
+        });
+      } catch (err) { console.debug('ENTLN fetch:', err); }
+    };
+
+    fetchStrikes();
+    intervalRef.current = setInterval(fetchStrikes, 60_000);
+
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [enabled]);
+
+  const now = Date.now();
+  return (
+    <>
+      {strikes.map((s, i) => {
+        const age = now - s.time;
+        const maxAge = 20 * 60 * 1000;
+        const opacity = Math.max(0.08, 1 - (age / maxAge) * 0.92);
+        const color = age < 60_000 ? "#FFFFFF" : age < 3 * 60_000 ? "#00FFFF" : age < 8 * 60_000 ? "#00AAFF" : "#0055FF";
+        const radius = age < 60_000 ? 5 : age < 3 * 60_000 ? 3 : 2;
+        return (
+          <CircleMarker key={`entln-${s.time}-${i}`} center={[s.lat, s.lon]}
+            radius={radius} fillColor={color} color={color} weight={0.5}
+            fillOpacity={opacity} opacity={opacity * 0.7} />
+        );
+      })}
+    </>
+  );
+}
+
 export function MapArea({
   center,
   zoom = 4,
@@ -569,6 +624,8 @@ export function MapArea({
   showSpcWatches = false,
   showLightning = false,
   showMcd = false,
+  showEntln = false,
+  showAhMcd = false,
   loopEnabled = false,
 }: MapAreaProps) {
   // Bust tile cache every 2 minutes for radar, 10 minutes for satellite
@@ -642,6 +699,8 @@ export function MapArea({
   const mcdData = useSpcGeoJson(!!showMcd, "/api/weather/mcd");
   // NOAA official WWA polygons from ArcGIS FeatureServer (national coverage, official geometries)
   const nwsWwaData = useSpcGeoJson(!!showNwsAlerts, "/api/weather/nws-wwa");
+  // Allisonhouse MCD polygons
+  const ahMcdData = useSpcGeoJson(!!showAhMcd, "/api/weather/ah-mcd");
 
   return (
     <div className="relative w-full h-full bg-background z-0">
@@ -878,8 +937,31 @@ export function MapArea({
           />
         )}
 
-        {/* Real-time lightning strikes (Blitzortung) */}
+        {/* Real-time lightning strikes (Blitzortung + GLM) */}
         <LightningLayer enabled={!!showLightning} />
+
+        {/* Allisonhouse ENTLN lightning */}
+        <EntlnLayer enabled={!!showEntln} />
+
+        {/* Allisonhouse MCD polygons */}
+        {showAhMcd && ahMcdData && ahMcdData.features && ahMcdData.features.length > 0 && (
+          <GeoJSON
+            key={`ah-mcd-${Date.now()}-${ahMcdData.features.length}`}
+            data={ahMcdData}
+            style={() => ({
+              color: "#FF6600",
+              weight: 3,
+              dashArray: "6 4",
+              fillColor: "#FF6600",
+              fillOpacity: 0.15,
+            })}
+            onEachFeature={(feature, layer) => {
+              const props = (feature.properties as any) || {};
+              const label = props.title ? `MCD: ${props.title}` : "MCD";
+              layer.bindTooltip(label, { sticky: true, className: "leaflet-tooltip-dark" });
+            }}
+          />
+        )}
 
         <ZoomControl position="topright" />
         <ScaleControl position="bottomright" imperial={true} metric={false} />
@@ -938,7 +1020,13 @@ export function MapArea({
         {showLightning && (
           <div className="bg-card/80 backdrop-blur px-3 py-1 rounded border border-border/50 shadow-lg flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse shadow-[0_0_6px_#FFFF00]"></div>
-            <span className="text-[10px] font-mono-tech text-yellow-400 uppercase tracking-widest font-bold">LIGHTNING LIVE</span>
+            <span className="text-[10px] font-mono-tech text-yellow-400 uppercase tracking-widest font-bold">GLM/BLITZ LIVE</span>
+          </div>
+        )}
+        {showEntln && (
+          <div className="bg-card/80 backdrop-blur px-3 py-1 rounded border border-border/50 shadow-lg flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_6px_#00FFFF]"></div>
+            <span className="text-[10px] font-mono-tech text-cyan-400 uppercase tracking-widest font-bold">ENTLN LIVE</span>
           </div>
         )}
       </div>

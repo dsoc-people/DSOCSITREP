@@ -45,8 +45,10 @@ export default function Dashboard() {
   const [showNwsAlerts, setShowNwsAlerts] = useState(true);
   const [showSpcWatches, setShowSpcWatches] = useState(true);
   const [showLightning, setShowLightning] = useState(true);
+  const [showEntln, setShowEntln] = useState(false);
   const [loopEnabled, setLoopEnabled] = useState(false);
   const [showMcd, setShowMcd] = useState(true);
+  const [showAhMcd, setShowAhMcd] = useState(false);
 
   // AFD office selector
   const [afdOffice, setAfdOffice] = useState("LMK");
@@ -270,13 +272,32 @@ export default function Dashboard() {
                 <div className="pt-2 border-t border-border/30">
                   <h3 className="text-[10px] font-black uppercase tracking-widest text-primary mb-3">Analysis Layers</h3>
                   <div className="space-y-4">
-                    {/* Lightning */}
+                    {/* GLM / Blitzortung Lightning */}
                     <div className="space-y-1">
                       <div className="flex items-center space-x-2">
                         <Checkbox id="lightning" checked={showLightning} onCheckedChange={(c) => setShowLightning(!!c)} />
                         <Label htmlFor="lightning" className="text-[10px] font-bold uppercase cursor-pointer flex items-center gap-1">
                           <Zap className="w-3 h-3 text-yellow-400" />
-                          Lightning Strikes
+                          GLM / Blitzortung
+                        </Label>
+                      </div>
+                    </div>
+                    {/* Allisonhouse ENTLN Lightning */}
+                    <div className="space-y-1">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox id="entln" checked={showEntln} onCheckedChange={(c) => setShowEntln(!!c)} />
+                        <Label htmlFor="entln" className="text-[10px] font-bold uppercase cursor-pointer flex items-center gap-1">
+                          <Zap className="w-3 h-3 text-cyan-400" />
+                          ENTLN (AH)
+                        </Label>
+                      </div>
+                    </div>
+                    {/* Allisonhouse MCDs */}
+                    <div className="space-y-1">
+                      <div className="flex items-center space-x-2">
+                        <Checkbox id="ahMcd" checked={showAhMcd} onCheckedChange={(c) => setShowAhMcd(!!c)} />
+                        <Label htmlFor="ahMcd" className="text-[10px] font-bold uppercase cursor-pointer" style={{ color: "#FF6600" }}>
+                          MCDs (AH)
                         </Label>
                       </div>
                     </div>
@@ -348,7 +369,9 @@ export default function Dashboard() {
           showNwsAlerts={showNwsAlerts}
           showSpcWatches={showSpcWatches}
           showLightning={showLightning}
+          showEntln={showEntln}
           showMcd={showMcd}
+          showAhMcd={showAhMcd}
           loopEnabled={loopEnabled}
         />
 

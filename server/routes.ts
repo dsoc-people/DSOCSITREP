@@ -833,6 +833,121 @@ export async function registerRoutes(
     }
   });
 
+  // ── Allisonhouse ENTLN Lightning (.places parser) ────────────────────────
+  function parseEntlnPlaces(text: string): any[] {
+    const features: any[] = [];
+    for (const raw of text.split('\n')) {
+      const line = raw.trim();
+      if (!line || line.startsWith(';') || line.startsWith('//')) continue;
+
+      // GRLevel2 placefile: Icon: lat, lon, angle, iconfile, label
+      const iconMatch = line.match(/^Icon:\s*([-\d.]+)\s*,\s*([-\d.]+)/i);
+      if (iconMatch) {
+        const lat = parseFloat(iconMatch[1]);
+        const lon = parseFloat(iconMatch[2]);
+        if (!isNaN(lat) && !isNaN(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) {
+          features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [lon, lat] }, properties: { timestamp: new Date().toISOString() } });
+        }
+        continue;
+      }
+
+      // Tab-delimited: Lat\tLon\t...
+      const tabParts = line.split('\t');
+      if (tabParts.length >= 2) {
+        const lat = parseFloat(tabParts[0]);
+        const lon = parseFloat(tabParts[1]);
+        if (!isNaN(lat) && !isNaN(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) {
+          features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [lon, lat] }, properties: { timestamp: new Date().toISOString() } });
+          continue;
+        }
+      }
+
+      // Comma-delimited: Lat,Lon[,...]
+      const commaParts = line.split(',');
+      if (commaParts.length >= 2) {
+        const lat = parseFloat(commaParts[0]);
+        const lon = parseFloat(commaParts[1]);
+        if (!isNaN(lat) && !isNaN(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) {
+          features.push({ type: 'Feature', geometry: { type: 'Point', coordinates: [lon, lat] }, properties: { timestamp: new Date().toISOString() } });
+        }
+      }
+    }
+    return features;
+  }
+
+  // ── Allisonhouse MCD (.places polygon parser) ─────────────────────────────
+  function parseMcdPlacesAh(text: string): any[] {
+    const features: any[] = [];
+    const lines = text.split('\n').map(l => l.trim());
+    let inPolygon = false;
+    let currentCoords: [number, number][] = [];
+    let currentProps: any = {};
+
+    for (const line of lines) {
+      if (!line || line.startsWith(';') || line.startsWith('//')) continue;
+
+      const titleMatch = line.match(/^Title:\s*(.+)$/i);
+      if (titleMatch) { currentProps.title = titleMatch[1].trim(); continue; }
+
+      if (/^Polygon:/i.test(line) || line.toLowerCase() === 'polygon') {
+        inPolygon = true; currentCoords = []; continue;
+      }
+
+      if (/^End:/i.test(line) || line.toLowerCase() === 'end') {
+        if (inPolygon && currentCoords.length >= 3) {
+          const coords = [...currentCoords];
+          if (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1]) {
+            coords.push(coords[0]);
+          }
+          features.push({ type: 'Feature', geometry: { type: 'Polygon', coordinates: [coords] }, properties: { ...currentProps } });
+          currentProps = {};
+        }
+        inPolygon = false; currentCoords = []; continue;
+      }
+
+      if (inPolygon) {
+        const parts = line.split(',');
+        if (parts.length >= 2) {
+          const lat = parseFloat(parts[0]);
+          const lon = parseFloat(parts[1]);
+          if (!isNaN(lat) && !isNaN(lon)) currentCoords.push([lon, lat]);
+        }
+      }
+    }
+    return features;
+  }
+
+  app.get("/api/weather/entln", async (_req: any, res: any) => {
+    try {
+      const response = await fetch(
+        "https://feeds.allisonhouse.com/ec12f074a76bc6f9301c02266382f73e/entln.places",
+        { headers: { "User-Agent": "DSOC-Dashboard/1.0 (dsoc@wku.edu)" }, signal: AbortSignal.timeout(10_000) }
+      );
+      if (!response.ok) return res.json({ type: 'FeatureCollection', features: [] });
+      const text = await response.text();
+      res.json({ type: 'FeatureCollection', features: parseEntlnPlaces(text) });
+    } catch (error) {
+      console.error('ENTLN fetch error:', error);
+      res.json({ type: 'FeatureCollection', features: [] });
+    }
+  });
+
+  app.get("/api/weather/ah-mcd", async (_req: any, res: any) => {
+    try {
+      const response = await fetch(
+        "https://feeds.allisonhouse.com/ec12f074a76bc6f9301c02266382f73e/mcd.places",
+        { headers: { "User-Agent": "DSOC-Dashboard/1.0 (dsoc@wku.edu)" }, signal: AbortSignal.timeout(10_000) }
+      );
+      if (!response.ok) return res.json({ type: 'FeatureCollection', features: [] });
+      const text = await response.text();
+      res.json({ type: 'FeatureCollection', features: parseMcdPlacesAh(text) });
+    } catch (error) {
+      console.error('AH MCD fetch error:', error);
+      res.json({ type: 'FeatureCollection', features: [] });
+    }
+  });
+  // ─────────────────────────────────────────────────────────────────────────
+
   app.get("/api/ky-counties", async (_req: any, res: any) => {
     try {
       const url = "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/State_County/MapServer/1/query?where=STATE%3D%2721%27&outFields=NAME&outSR=4326&f=geojson";
